@@ -20,42 +20,40 @@ test('缺密钥返回 E_DEP，并指出需要的环境变量', () => {
   assert.ok(logger.lines.some((line) => line.message === '密钥缺失，云端 ASR 不可用'))
 })
 
+test('缺省值：非实时 HTTP 端点 + 实测可用的模型名', () => {
+  const result = resolveCloudAsrConfig({ source: createEnvSource({ [ENV.apiKey]: 'sk' }) })
+
+  assert.equal(result.config.model, 'qwen-audio-3.0-asr-flash')
+  assert.match(result.config.endpoint, /\/api\/v1\/services\/aigc\/multimodal-generation\/generation$/)
+  assert.equal(result.config.chunkSeconds, 300)
+  assert.equal(result.config.sampleRate, 16000)
+  assert.deepEqual(result.config.terms, [])
+})
+
 test('全量环境变量覆盖后解析正确', () => {
   const result = resolveCloudAsrConfig({
     source: createEnvSource({
       [ENV.apiKey]: 'sk-test',
-      [ENV.model]: 'qwen-audio-3.1-asr-flash-streaming',
-      [ENV.endpoint]: 'wss://demo.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference',
-      [ENV.speed]: '2',
+      [ENV.model]: 'qwen-audio-3.1-asr-flash',
+      [ENV.endpoint]: 'https://token-plan.cn-beijing.maas.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
+      [ENV.chunkSeconds]: '120',
       [ENV.terms]: 'XXX, 康养 ,社区食堂',
     }),
   })
 
   assert.equal(result.ok, true)
-  assert.equal(result.config.apiKey, 'sk-test')
-  assert.equal(result.config.model, 'qwen-audio-3.1-asr-flash-streaming')
+  assert.equal(result.config.model, 'qwen-audio-3.1-asr-flash')
   assert.match(result.config.endpoint, /maas\.aliyuncs\.com/)
-  assert.equal(result.config.speed, 2)
-  assert.deepEqual(Object.keys(result.config.vocabulary), ['XXX', '康养', '社区食堂'])
-  assert.equal(result.config.sourceName, 'env')
+  assert.equal(result.config.chunkSeconds, 120)
+  assert.deepEqual(result.config.terms, ['XXX', '康养', '社区食堂'])
 })
 
-test('缺省值与文档一致（旧域名 + 3.0 流式模型）', () => {
-  const result = resolveCloudAsrConfig({ source: createEnvSource({ [ENV.apiKey]: 'sk' }) })
+test('非法分片时长回退默认', () => {
+  const tooSmall = resolveCloudAsrConfig({ source: createEnvSource({ [ENV.apiKey]: 'sk', [ENV.chunkSeconds]: '3' }) })
+  assert.equal(tooSmall.config.chunkSeconds, CLOUD_DEFAULTS.chunkSeconds)
 
-  assert.equal(result.config.model, CLOUD_DEFAULTS.model)
-  assert.equal(result.config.endpoint, CLOUD_DEFAULTS.endpoint)
-  assert.equal(result.config.speed, 1)
-  assert.equal(result.config.sampleRate, 16000)
-  assert.equal(result.config.vocabulary, null)
-})
-
-test('非法倍速回退默认，不抛错', () => {
-  const result = resolveCloudAsrConfig({ source: createEnvSource({ [ENV.apiKey]: 'sk', [ENV.speed]: 'abc' }) })
-  assert.equal(result.config.speed, 1)
-
-  const negative = resolveCloudAsrConfig({ source: createEnvSource({ [ENV.apiKey]: 'sk', [ENV.speed]: '-3' }) })
-  assert.equal(negative.config.speed, 1)
+  const nan = resolveCloudAsrConfig({ source: createEnvSource({ [ENV.apiKey]: 'sk', [ENV.chunkSeconds]: 'abc' }) })
+  assert.equal(nan.config.chunkSeconds, CLOUD_DEFAULTS.chunkSeconds)
 })
 
 test('术语超过上限截断并告警', () => {
@@ -67,12 +65,6 @@ test('术语超过上限截断并告警', () => {
   assert.equal(terms.kept, 200)
   assert.equal(terms.truncated, true)
   assert.ok(logger.lines.some((line) => line.level === 'warn' && line.message === '术语超限截断'))
-})
-
-test('术语去重，权重按默认 3', () => {
-  const terms = parseTerms('XXX,XXX,康养')
-  assert.equal(terms.total, 2)
-  assert.equal(terms.vocabulary['XXX'], 3)
 })
 
 test('配置来源可替换（页面配置的最小证明）', () => {
