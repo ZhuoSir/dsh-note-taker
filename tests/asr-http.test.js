@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { buildRequestBody, recognizeWithHttp } from '../lib/asr/http.js'
@@ -172,4 +172,25 @@ test('非 JSON 响应不抛错，按错误处理', async () => {
 
   assert.equal(result.ok, false)
   assert.equal(result.code, 'E_LLM')
+})
+
+test('开启说话人分离时透传 speaker_diarization_enabled', () => {
+  const on = buildRequestBody({ model: 'qwen-audio-3.1-asr-flash', audioBase64: 'AA', diarization: true })
+  assert.equal(on.parameters.speaker_diarization_enabled, true)
+
+  const off = buildRequestBody({ model: 'qwen-audio-3.0-asr-flash', audioBase64: 'AA' })
+  assert.equal(off.parameters.speaker_diarization_enabled, undefined, '未开启时不得出现该字段')
+})
+
+test('config 的 diarization 开关会透传到请求体', async () => {
+  const fetchImpl = fakeFetch()
+  const result = await recognizeWithHttp({
+    config: { ...BASE_CONFIG, model: 'qwen-audio-3.1-asr-flash', diarization: true },
+    audio: AUDIO,
+    logger: loggerSpy(),
+    fetchImpl,
+  })
+  assert.ok(fetchImpl.calls[0], `未发起请求：${JSON.stringify(result)}`)
+  const sent = JSON.parse(fetchImpl.calls[0].options.body)
+  assert.equal(sent.parameters.speaker_diarization_enabled, true)
 })

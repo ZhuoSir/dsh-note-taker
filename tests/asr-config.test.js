@@ -88,3 +88,11 @@ test('缺省引擎为 local，可被环境变量覆盖为 cloud', () => {
   assert.equal(resolveDefaultEngine({ source: createEnvSource({ [ENV.engine]: 'CLOUD' }) }), 'cloud')
   assert.equal(resolveDefaultEngine({ source: createEnvSource({ [ENV.engine]: 'whatever' }) }), 'local')
 })
+
+test('说话人分离开关按环境变量解析', () => {
+  const on = resolveCloudAsrConfig({ source: createEnvSource({ [ENV.apiKey]: 'sk', NOTE_TAKER_ASR_DIARIZATION: '1' }) })
+  assert.equal(on.config.diarization, true)
+
+  const off = resolveCloudAsrConfig({ source: createEnvSource({ [ENV.apiKey]: 'sk' }) })
+  assert.equal(off.config.diarization, false)
+})
