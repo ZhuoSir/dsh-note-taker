@@ -25,6 +25,11 @@ minutes/
 *.wav
 *.onnx
 *.srt
+*.m4a
+*.mp3
+*.aac
+*.flac
+*.ogg
 
 # 本地临时
 *.tmp

@@ -103,6 +103,13 @@ def main():
             vad_parameters={'min_silence_duration_ms': 500},
             initial_prompt=initial_prompt,
             beam_size=5,
+            # 长录音 + 混响环境下，把上一段文本当条件会让错误自我强化，
+            # 最终退化成「没 没 没…」「乖乖乖…」这种重复幻觉（现场实测过）。
+            condition_on_previous_text=False,
+            # 压缩比/对数概率过高通常是幻觉，交给 whisper 过滤掉而不是写进转录
+            compression_ratio_threshold=2.4,
+            log_prob_threshold=-1.0,
+            no_speech_threshold=0.6,
         )
         segments = [
             {'start': round(segment.start, 2), 'end': round(segment.end, 2), 'text': (segment.text or '').strip()}
