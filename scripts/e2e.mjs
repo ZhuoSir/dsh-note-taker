@@ -21,11 +21,22 @@ import { createService } from '../lib/service.js'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const argv = process.argv.slice(2)
-const audioIndex = argv.indexOf('--audio')
-const audioPath = audioIndex >= 0 ? argv[audioIndex + 1] : null
-const positional = audioIndex >= 0 ? argv.filter((_, index) => index !== audioIndex && index !== audioIndex + 1) : argv
-const seconds = Number(positional[0] ?? 5)
-const model = positional[1] ?? 'tiny'
+function flagValue(name) {
+  const index = argv.indexOf(name)
+  return index >= 0 ? argv[index + 1] : null
+}
+const audioPath = flagValue('--audio')
+const modelFlag = flagValue('--model')
+const secondsFlag = flagValue('--seconds')
+
+// 位置参数只当「秒数」用；模型档位一律走 --model，避免把档位名当成数字吞掉
+const positionals = argv.filter((item, index) => {
+  if (item.startsWith('--')) return false
+  const prev = argv[index - 1]
+  return !(prev === '--audio' || prev === '--model' || prev === '--seconds')
+})
+const seconds = Number(secondsFlag ?? positionals.find((item) => /^\d+$/.test(item)) ?? 5)
+const model = modelFlag ?? 'small'
 
 const STUB_MINUTES = `# 端到端演练纪要
 
