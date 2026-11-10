@@ -51,6 +51,7 @@ const REQUIRED = [
   'src/client/QuickPanel.jsx',
   'src/client/theme.js',
   'src/client/host.js',
+  'src/client/handoff.js',
   'scripts/build-client.mjs',
   'lib/asr/config.js',
   'lib/asr/aggregate.js',

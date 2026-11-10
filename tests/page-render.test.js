@@ -157,3 +157,50 @@ test('tab 切换：配置页与历史纪要页互斥渲染', () => {
   assert.match(minutesText, /云端 E2E/)
   assert.doesNotMatch(minutesText, /默认引擎/, '纪要 tab 不应渲染配置表单')
 })
+
+// QuickPanel 的 useState 顺序：
+// 0=open 1=rows 2=health 3=error 4=notice 5=phase 6=current 7=transcript 8=seconds 9=elapsed
+
+test('卡片：录音中 / 识别中 / 确认区 三种阶段都能渲染', () => {
+  const Host = {
+    createElement: (type, props, ...children) => ({ type, props, children }),
+    useState: (initial) => {
+      const slot = Host.index++
+      const overrides = Host.overrides
+      const value = Object.hasOwn(overrides, slot) ? overrides[slot] : (typeof initial === 'function' ? initial() : initial)
+      return [value, () => {}]
+    },
+    useMemo: (factory) => factory(),
+    useCallback: (fn) => fn,
+    useRef: (value) => ({ current: value }),
+    useEffect: () => {},
+    index: 0,
+    overrides: {},
+  }
+  const withOverrides = (overrides) => {
+    Host.overrides = overrides
+    Host.index = 0
+    const Panel = loadComponent('conversation.input.right', Host)
+    Host.index = 0
+    return Panel
+  }
+
+  // 面板打开 + 录音中
+  let flat = JSON.stringify(withOverrides({ 0: true, 5: 'recording', 8: 42 })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
+  assert.match(flat, /停止并识别/)
+  assert.match(flat, /● 0:42/)
+
+  // 识别中
+  flat = JSON.stringify(withOverrides({ 0: true, 5: 'transcribing' })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
+  assert.match(flat, /识别中/)
+
+  // 确认区：有转写文本 + 交给会话按钮
+  flat = JSON.stringify(withOverrides({ 0: true, 5: 'confirm', 7: '[00:00:00] 周会开始。' })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
+  assert.match(flat, /交给会话生成纪要/)
+  assert.match(flat, /识别结果（可改错字）/)
+
+  // 失败态给重试
+  flat = JSON.stringify(withOverrides({ 0: true, 5: 'error', 6: { meetingId: 'm-1' }, 3: '识别失败' })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
+  assert.match(flat, /重试识别/)
+  assert.match(flat, /识别失败/)
+})
