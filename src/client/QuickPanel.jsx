@@ -1,11 +1,11 @@
-/**
+﻿/**
  * 会话输入框旁的会记快捷面板（conversation.input.right 插槽）。
  *
  * 只做三件事：录音起停（带计时）、看最近 3 场状态、提示去设置区看全部（R-05）。
  * 面板不遮挡输入框：点击外部或再次点按钮收起。
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { createApi } from './api.js'
 import { capabilitiesFrom, errorText, formatDuration, toListRows } from './logic.js'
@@ -44,6 +44,8 @@ export function QuickPanel() {
     confirmCloud: (text) => (typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm(text) : false),
   }), [])
   const caps = useMemo(() => capabilitiesFrom(health), [health])
+  // 用派生视图：原始 meeting 是 status.record，派生后才是 record
+  const listRows = useMemo(() => toListRows(rows, { limit: 3 }), [rows])
 
   const refresh = useCallback(async () => {
     const [listResult, healthResult] = await Promise.all([api.list({ limit: 3 }), api.health()])
@@ -73,7 +75,7 @@ export function QuickPanel() {
     return () => { if (typeof document !== 'undefined') document.removeEventListener('mousedown', onDown) }
   }, [open])
 
-  const recording = rows.find((row) => row.record.status === 'running')
+  const recording = listRows.find((row) => row.record.status === 'running')
   useEffect(() => {
     if (!recording) { setSeconds(0); return undefined }
     const timer = setInterval(() => setSeconds((value) => value + 1), 1000)
@@ -87,46 +89,45 @@ export function QuickPanel() {
     await refresh()
   }, [refresh])
 
-  return React.createElement('div', { ref: rootRef, style: styles.root },
-    React.createElement('button', {
+  return createElement('div', { ref: rootRef, style: styles.root },
+    createElement('button', {
       type: 'button',
       style: styles.trigger(open),
       title: '会记',
       onClick: () => setOpen((value) => !value),
     }, recording ? `● ${formatDuration(seconds)}` : '会记'),
 
-    open ? React.createElement('div', { style: styles.panel },
-      React.createElement('div', { style: styles.row },
-        React.createElement('strong', null, '会记'),
-        React.createElement('span', { style: styles.muted }, caps.cloudReady ? '云端可用' : '云端未配置'),
+    open ? createElement('div', { style: styles.panel },
+      createElement('div', { style: styles.row },
+        createElement('strong', null, '会记'),
+        createElement('span', { style: styles.muted }, caps.cloudReady ? '云端可用' : '云端未配置'),
       ),
 
-      error ? React.createElement('div', { style: styles.error }, error) : null,
+      error ? createElement('div', { style: styles.error }, error) : null,
 
-      React.createElement('div', { style: styles.row },
+      createElement('div', { style: styles.row },
         recording
-          ? React.createElement('button', { type: 'button', style: styles.btn, onClick: () => act(() => api.record({ action: 'stop' })) },
+          ? createElement('button', { type: 'button', style: styles.btn, onClick: () => act(() => api.record({ action: 'stop' })) },
               `停止录音 ${formatDuration(seconds)}`)
-          : React.createElement('button', {
+          : createElement('button', {
               type: 'button', style: styles.btn,
               disabled: !caps.recordingReady,
               title: caps.recordingReady ? '' : '录音依赖不可用',
               onClick: () => act(() => api.record({ action: 'start' })),
             }, '开始录音'),
-        React.createElement('button', { type: 'button', style: styles.btn, onClick: refresh }, '刷新'),
+        createElement('button', { type: 'button', style: styles.btn, onClick: refresh }, '刷新'),
       ),
 
-      React.createElement('div', { style: styles.muted }, '最近 3 场'),
+      createElement('div', { style: styles.muted }, '最近 3 场'),
       rows.length === 0
-        ? React.createElement('div', { style: styles.muted }, '还没有会议')
-        : toListRows(rows, { limit: 3 }).map((row) => React.createElement('div', { key: row.id, style: { ...styles.row, alignItems: 'flex-start' } },
-            React.createElement('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.label),
-            React.createElement('span', { style: styles.muted }, `${row.transcribe.text} · ${row.durationText}`),
+        ? createElement('div', { style: styles.muted }, '还没有会议')
+        : listRows.map((row) => createElement('div', { key: row.id, style: { ...styles.row, alignItems: 'flex-start' } },
+            createElement('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.label),
+            createElement('span', { style: styles.muted }, `${row.transcribe.text} · ${row.durationText}`),
           )),
 
-      React.createElement('div', { style: styles.muted }, '全部会议在 设置 → 会记'),
+      createElement('div', { style: styles.muted }, '全部会议在 设置 → 会记'),
     ) : null,
   )
 }
 
-export default QuickPanel
