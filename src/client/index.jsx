@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 会记客户端（浏览器侧）—— T-01 探针版。
  *
  * 目的：验证两个插槽能否承载真实 UI（设置区页面 + 会话输入框旁按钮）。
@@ -9,6 +9,7 @@
 
 import React, { useState } from 'react'
 
+export const name = 'dsh-note-taker'
 export const inject = ['slots']
 
 function ProbeSection() {
