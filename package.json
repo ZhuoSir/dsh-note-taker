@@ -1,0 +1,45 @@
+{
+  "name": "dsh-note-taker",
+  "version": "0.1.0",
+  "description": "会记（note-taker）：本地录音 → 本机转写 → 会议纪要的 DSH 插件，跨平台、不依赖第三方会议服务。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "py",
+    "scripts",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "verify": "node scripts/verify.mjs",
+    "test": "node scripts/verify.mjs --tests-only"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "cordis",
+    "note-taker",
+    "meeting",
+    "minutes",
+    "asr",
+    "会议纪要",
+    "录音转写"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT",
+  "private": true
+}
