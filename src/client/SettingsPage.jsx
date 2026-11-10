@@ -36,6 +36,13 @@ const styles = {
   td: { padding: '6px 8px', borderBottom: `1px solid ${theme.borderSoft}`, verticalAlign: 'top' },
   pre: { margin: 0, maxHeight: 360, overflow: 'auto', fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap', fontFamily: theme.mono, background: theme.bgHover, padding: 10, borderRadius: 8, color: theme.text },
   radio: { display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 16, fontSize: 13, cursor: 'pointer' },
+  tabs: { display: 'flex', gap: 4, borderBottom: `1px solid ${theme.border}`, paddingBottom: 0 },
+  tab: (active) => ({
+    padding: '7px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+    border: 'none', borderBottom: `2px solid ${active ? theme.accent : 'transparent'}`,
+    background: 'transparent', color: active ? theme.text : theme.textSecondary,
+    marginBottom: -1,
+  }),
 }
 
 function Field({ label, hint, error, children }) {
@@ -49,6 +56,7 @@ function Field({ label, hint, error, children }) {
 
 export function SettingsPage() {
   const api = useMemo(() => createApi({}), [])
+  const [tab, setTab] = useState('config')
   const [form, setForm] = useState(null)
   const [sources, setSources] = useState({})
   const [fieldErrors, setFieldErrors] = useState({})
@@ -157,10 +165,15 @@ export function SettingsPage() {
       createElement('span', { style: styles.muted }, '配置与历史纪要；录音与生成纪要在会话输入框旁的「会记」里'),
     ),
 
+    createElement('div', { style: styles.tabs, role: 'tablist' },
+      createElement('button', { type: 'button', role: 'tab', 'aria-selected': tab === 'config', style: styles.tab(tab === 'config'), onClick: () => setTab('config') }, '配置'),
+      createElement('button', { type: 'button', role: 'tab', 'aria-selected': tab === 'minutes', style: styles.tab(tab === 'minutes'), onClick: () => setTab('minutes') }, `历史纪要（${minutesRows.length}）`),
+    ),
+
     error ? createElement('div', { style: styles.error }, error) : null,
     notice ? createElement('div', { style: styles.ok }, notice) : null,
 
-    createElement('div', { style: styles.card },
+    tab === 'config' ? createElement('div', { style: styles.card },
       createElement('div', { style: { fontSize: 13, fontWeight: 600 } }, '语音识别'),
       createElement('div', { style: styles.row },
         createElement(Field, { label: '默认引擎' },
@@ -240,9 +253,9 @@ export function SettingsPage() {
         }, saving ? '保存中…' : '保存配置'),
         createElement('span', { style: styles.muted }, `生效来源：引擎 ${sources.engine ?? '—'}／Key ${sources.apiKey ?? '—'}`),
       ),
-    ),
+    ) : null,
 
-    createElement('div', { style: styles.card },
+    tab === 'minutes' ? createElement('div', { style: styles.card },
       createElement('div', { style: { fontSize: 13, fontWeight: 600 } }, `历史纪要（${minutesRows.length}）`),
       minutesRows.length === 0
         ? createElement('div', { style: styles.muted }, '还没有纪要。录音并在会话里生成后，这里会出现。')
@@ -266,9 +279,9 @@ export function SettingsPage() {
               createElement('td', { style: styles.td }, row.segments ?? '—'),
             ))),
           ),
-    ),
+    ) : null,
 
-    openedId ? createElement('div', { style: styles.card },
+    tab === 'minutes' && openedId ? createElement('div', { style: styles.card },
       createElement('div', { style: styles.bar },
         createElement('strong', null, '纪要正文'),
         createElement('button', { type: 'button', style: styles.btn, onClick: () => openMinutes(openedId) }, '收起'),

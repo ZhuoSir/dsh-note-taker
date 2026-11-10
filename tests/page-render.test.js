@@ -89,7 +89,7 @@ test('配置未加载时显示占位，不崩', () => {
 })
 
 test('配置加载后渲染表单：引擎单选、模型下拉、Key 掩码都在', () => {
-  const react = makeReact({ 0: CONFIG })
+  const react = makeReact({ 1: CONFIG })
   const Page = loadComponent('settings.section', react)
   react.reset()
 
@@ -102,7 +102,7 @@ test('配置加载后渲染表单：引擎单选、模型下拉、Key 掩码都�
 })
 
 test('有历史纪要时列表渲染，原始对象不崩（派生视图回归）', () => {
-  const react = makeReact({ 0: CONFIG, 6: [RAW_MEETING] })
+  const react = makeReact({ 0: 'minutes', 1: CONFIG, 7: [RAW_MEETING] })
   const Page = loadComponent('settings.section', react)
   react.reset()
 
@@ -114,7 +114,7 @@ test('有历史纪要时列表渲染，原始对象不崩（派生视图回归�
 
 test('没有纪要的会议不出现在列表里', () => {
   const pending = { ...RAW_MEETING, status: { ...RAW_MEETING.status, minutes: 'pending' } }
-  const react = makeReact({ 0: CONFIG, 6: [pending] })
+  const react = makeReact({ 0: 'minutes', 1: CONFIG, 7: [pending] })
   const Page = loadComponent('settings.section', react)
   react.reset()
 
@@ -125,8 +125,8 @@ test('没有纪要的会议不出现在列表里', () => {
 
 test('字段错误按位置渲染，不抛异常', () => {
   const react = makeReact({
-    0: CONFIG,
-    2: { 'asr.chunkSeconds': '分片秒数必须是 10–3600 的整数' },
+    1: CONFIG,
+    3: { 'asr.chunkSeconds': '分片秒数必须是 10–3600 的整数' },
   })
   const Page = loadComponent('settings.section', react)
   react.reset()
@@ -140,4 +140,20 @@ test('快捷面板：空数据也能渲染', () => {
   const QuickPanel = loadComponent('conversation.input.right', react)
   react.reset()
   assert.doesNotThrow(() => QuickPanel())
+})
+
+test('tab 切换：配置页与历史纪要页互斥渲染', () => {
+  const configTab = makeReact({ 0: 'config', 1: CONFIG, 7: [RAW_MEETING] })
+  const ConfigPage = loadComponent('settings.section', configTab)
+  configTab.reset()
+  const configText = JSON.stringify(ConfigPage(), (key, value) => (typeof value === 'function' ? '[fn]' : value))
+  assert.match(configText, /默认引擎/)
+  assert.doesNotMatch(configText, /云端 E2E/, '配置 tab 不应渲染纪要数据行')
+
+  const minutesTab = makeReact({ 0: 'minutes', 1: CONFIG, 7: [RAW_MEETING] })
+  const MinutesPage = loadComponent('settings.section', minutesTab)
+  minutesTab.reset()
+  const minutesText = JSON.stringify(MinutesPage(), (key, value) => (typeof value === 'function' ? '[fn]' : value))
+  assert.match(minutesText, /云端 E2E/)
+  assert.doesNotMatch(minutesText, /默认引擎/, '纪要 tab 不应渲染配置表单')
 })
