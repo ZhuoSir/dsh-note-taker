@@ -1,0 +1,84 @@
+{
+  "name": "dsh-note-taker",
+  "version": "0.1.0",
+  "description": "会记：DeepSeek Harness 插件的录音与会议纪要能力——本机 faster-whisper 或阿里云百炼双引擎转写（支持说话人分离），产物写入会话工作区，纪要在会话里生成。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "py",
+    "scripts",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "build:client": "node scripts/build-client.mjs",
+    "verify": "node scripts/verify.mjs",
+    "test": "node scripts/verify.mjs --tests-only"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "cordis",
+    "note-taker",
+    "meeting",
+    "meeting-minutes",
+    "minutes",
+    "asr",
+    "speech-to-text",
+    "transcription",
+    "faster-whisper",
+    "whisper",
+    "qwen-audio",
+    "dashscope",
+    "aliyun-bailian",
+    "speaker-diarization",
+    "会议纪要",
+    "录音转写",
+    "语音识别"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    },
+    "engines": {
+      "dsh": ">=0.1.7-rc.1"
+    },
+    "compatibility": {
+      "dshReleases": {
+        "0.1.7-rc.1": "compatible",
+        "0.1.7-rc.2": "compatible"
+      }
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZhuoSir/dsh-note-taker.git"
+  },
+  "homepage": "https://github.com/ZhuoSir/dsh-note-taker#readme",
+  "bugs": {
+    "url": "https://github.com/ZhuoSir/dsh-note-taker/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}
