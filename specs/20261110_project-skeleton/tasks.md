@@ -4,7 +4,7 @@
 
 ## 1. 骨架与基础设施
 
-- [ ] T-01 建立仓库骨架、插件入口与 README
+- [x] T-01 建立仓库骨架、插件入口与 README
   关联: R-01, R-09
   依赖: 无
   验证方式: `npm run verify -- --structure-only` 输出检查项数且 exit 0；`node -e "import('./lib/index.js').then(m=>console.log(m.name, JSON.stringify(m.inject)))"` 打印 `dsh-note-taker ["tools","llm"]`；README 里目录树的每一项都在磁盘上存在
