@@ -25,14 +25,14 @@
 
 ## 2. 客户端
 
-- [ ] T-04 实现百炼 WebSocket 客户端
+- [x] T-04 实现百炼 WebSocket 客户端
   关联: R-02, R-05, R-08
   依赖: T-01, T-03
   验证方式: 用 T-05 的假 WebSocket 驱动：断言发送顺序为 `run-task` → （收到 `task-started` 后）音频帧 → `finish-task`；`run-task` 的 `model`/`parameters.format`/`sample_rate` 与配置一致；未收到 `task-started` 就推流时客户端必须等待而不是抢跑；空闲超过阈值触发中止并返回 `E_LLM`；连接错误映射为 `E_LLM`、握手 401 映射为 `E_DEP`
   日志断言: 依次出现「连接建立」（host/耗时）、「task-started」（taskId/model）、「首条最终结果」、「task-finished」（句数/usage.duration/总耗时）；失败路径出现「连接/推流失败」含 code 与服务端 error_code，且**日志中检索不到密钥串**
   验收标准: 协议序列与五类错误路径用例全绿；无真实网络请求
 
-- [ ] T-05 提供假 WebSocket 客户端并补协议单测
+- [x] T-05 提供假 WebSocket 客户端并补协议单测
   关联: R-10
   依赖: T-02, T-04
   验证方式: `node --test tests/cloud-asr.test.js`——假客户端可编排服务端事件脚本（started→N 条 result→finished），断言客户端产出与 `aggregate` 结果一致；另覆盖：`task-failed`、无响应超时、连接中途关闭、服务端返回畸形 JSON 四种错误路径
