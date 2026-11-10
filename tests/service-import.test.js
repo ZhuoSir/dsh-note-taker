@@ -153,3 +153,30 @@ test('自动转写失败：导入仍成功，带 transcribeError', async () => {
     assert.ok(warned.length <= 1)
   }
 })
+
+test('显式 workspaceDir（来自工具 exec.cwd）直接落工作区，不依赖 sessionId 匹配', async () => {
+  const { service } = makeService()
+  const workspace = tempRoot('note-taker-ws-')
+  const audio = makeWav(join(tempRoot('note-taker-src-'), '会议.wav'))
+
+  const result = await service.importAudio({ fromPath: audio, transcribe: true, workspaceDir: workspace })
+  assert.equal(result.ok, true, JSON.stringify(result))
+  assert.equal(result.outputMode, 'workspace', '显式目录应生效')
+  assert.ok(result.outputFile.startsWith(workspace))
+})
+
+test('纪要写在旧 transcripts/<id>.md 里也能被 list 识别（无工作区场景）', async () => {
+  const { service, root } = makeService()
+  const audio = makeWav(join(tempRoot('note-taker-src-'), '旧格式.wav'))
+
+  const imported = await service.importAudio({ fromPath: audio, transcribe: false })
+  const id = imported.meetingId
+
+  const { mkdirSync, writeFileSync } = await import('node:fs')
+  mkdirSync(join(root, 'transcripts'), { recursive: true })
+  writeFileSync(join(root, 'transcripts', `${id}.md`), '[00:00:00] 内容\n\n## 纪要\n\n- 决议 A\n', 'utf8')
+
+  const row = service.list({ limit: 10 }).meetings.find((item) => item.id === id)
+  assert.equal(row.hasMinutes, true, '应识别旧文件里的 ## 纪要')
+  assert.equal(row.status.minutes, 'done', '状态自愈')
+})
