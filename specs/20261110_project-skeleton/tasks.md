@@ -11,7 +11,7 @@
   日志断言: 用最小 fake ctx 调 `apply()`，日志必须出现两行——「插件启动」含 name/version/tools/root/rootSource，「配置加载」含 model/threads/firstRun；对应 plan 关键日志点第 1、2 行
   验收标准: 结构检查绿；三导出齐全；README 覆盖目录树、分层职责、安装、命令、数据目录
 
-- [ ] T-02 实现结构化日志与错误信封
+- [x] T-02 实现结构化日志与错误信封
   关联: R-07
   依赖: T-01
   验证方式: `node --test tests/logger.test.js tests/errors.test.js`——断言日志行为 `时间 级别 [runId] 模块 - 中文消息, k=v` 且消息内出现 `{` 占位未替换即失败；断言 `err(code,msg,detail)` 产出 `{ok:false,code,message,detail}` 且 `detail` 不含 `stack`；断言日志里写入含 `/Users/` 或 `C:\\Users\\` 的路径时被替换为 `<data>`

@@ -23,6 +23,8 @@ const REQUIRED = [
   'cordis.patch.yml',
   'README.md',
   'lib/index.js',
+  'lib/logger.js',
+  'lib/errors.js',
   'scripts/verify.mjs',
 ]
 
