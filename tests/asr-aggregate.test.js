@@ -1,7 +1,7 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { aggregateSentences } from '../lib/asr/aggregate.js'
+import { aggregateHttpPayload, aggregateSentences } from '../lib/asr/aggregate.js'
 
 function result({ text, begin, end, id = 1, end_ = true, heartbeat = false }) {
   return {
@@ -93,4 +93,40 @@ test('task-finished 里的 usage 被收集', () => {
     { header: { event: 'task-finished' }, payload: { usage: { duration: 2, total_tokens: 89 } } },
   ])
   assert.deepEqual(usage, { duration: 2, total_tokens: 89 })
+})
+
+// ---- CR-01：非实时 HTTP 响应聚合 ----
+
+test('HTTP 响应：顶层 sentence 聚合成一段，偏移生效', () => {
+  const payload = { sentence: { sentence_id: 1, begin_time: 200, end_time: 11640, text: '周会开始。', sentence_end: true } }
+  const { segments } = aggregateHttpPayload(payload, { offsetSec: 120 })
+
+  assert.deepEqual(segments, [{ start: 120.2, end: 131.64, text: '周会开始。' }])
+})
+
+test('HTTP 响应：output.sentences 数组（开说话人分离）带 speakerId', () => {
+  const payload = {
+    output: {
+      sentences: [
+        { sentence_id: 1, begin_time: 0, end_time: 1000, text: '第一句', speaker_id: 0 },
+        { sentence_id: 2, begin_time: 1000, end_time: 2000, text: '第二句', speaker_id: 1 },
+      ],
+    },
+  }
+  const { segments } = aggregateHttpPayload(payload)
+
+  assert.equal(segments.length, 2)
+  assert.equal(segments[0].speakerId, 0)
+  assert.equal(segments[1].speakerId, 1)
+})
+
+test('HTTP 响应：没有句子时返回空数组，不抛错', () => {
+  assert.deepEqual(aggregateHttpPayload({}).segments, [])
+  assert.deepEqual(aggregateHttpPayload(null).segments, [])
+})
+
+test('HTTP 响应：空文本被丢弃并计数', () => {
+  const { segments, dropped } = aggregateHttpPayload({ sentence: { begin_time: 0, end_time: 1, text: '  ' } })
+  assert.deepEqual(segments, [])
+  assert.equal(dropped.malformed, 1)
 })
