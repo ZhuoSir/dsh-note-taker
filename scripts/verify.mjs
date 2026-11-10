@@ -45,6 +45,7 @@ const REQUIRED = [
   'lib/asr/pcm.js',
   'lib/asr/http.js',
   'lib/asr/chunk.js',
+  'lib/asr/wav.js',
   'py/decode_pcm.py',
   'py/_common.py',
   'py/record.py',
