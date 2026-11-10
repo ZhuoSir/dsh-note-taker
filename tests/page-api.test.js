@@ -115,3 +115,18 @@ test('本地动作不需要确认', async () => {
   assert.equal(result.ok, true)
   assert.equal(fetchImpl.calls.length, 1)
 })
+
+test('sessionId 只在该传的地方出现', async () => {
+  const fetchImpl = fakeFetch()
+  const api = createApi({ fetchImpl, confirmCloud: async () => true })
+
+  await api.transcribe({ id: 'm-1', engine: 'cloud', sessionId: 'sess-1' })
+  assert.deepEqual(JSON.parse(fetchImpl.calls[0].options.body), { id: 'm-1', engine: 'cloud', sessionId: 'sess-1' })
+
+  await api.detail({ id: 'm-1', sessionId: 'sess-1' })
+  assert.match(fetchImpl.calls[1].url, /sessionId=sess-1/)
+
+  await api.transcribe({ id: 'm-1', engine: 'local' })
+  const body = JSON.parse(fetchImpl.calls[2].options.body)
+  assert.ok(!('sessionId' in body) || body.sessionId === undefined, '不传时不应出现 sessionId')
+})

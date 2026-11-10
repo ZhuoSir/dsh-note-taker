@@ -1,18 +1,26 @@
 /**
- * 交接消息构造（R-06 / R-10）。
+ * 交接消息构造（R-03 / R-06）。
  *
- * 「交给会话」本质是把一段结构化文本作为用户消息发进当前会话，让 agent 据此生成纪要。
- * 这里做成纯函数，可单测；发送动作在组件里完成（走 host.js 拿到的 conversation 服务）。
+ * 新形态：产物已经写进会话工作区的单文件里，交接消息**只给路径和指令**，
+ * 不再把整段转写塞进对话——47 分钟会议正文一万五千字，塞进去既费 token 也没人看。
  *
- * 为什么超长要降级：47 分钟会议的转写约 1.5 万字，整段塞进消息既浪费 token 也容易截断。
- * 超过阈值时改为「摘要 + 指向 transcripts 文件」，让 agent 自己按需读取。
+ * 兼容：没有产物路径时（旧调用方 / 极端回落），退化为内联全文，行为与改造前一致。
  *
  * @module dsh-note-taker/client/handoff
  */
 
 export const MAX_INLINE_CHARS = 8000
+export const MAX_MESSAGE_CHARS = 800
 
-const INSTRUCTION = '请据此生成会议纪要：按「背景 / 讨论要点 / 决议 / 行动项（负责人 + 截止时间）」组织，'
+const INSTRUCTION_FILE = (path) => [
+  `产物文件：\`${path}\``,
+  '该文件包含元信息、`## 转写` 与 `## 纪要` 两节。',
+  '请读取它，生成会议纪要并写入同一文件的 `## 纪要` 一节；结构要求：',
+  '标题 / 「> 日期: YYYY-MM-DD | 时长: N 分钟」/ 一句话摘要 / 议题 / 决议 / 行动项（负责人 + 事项 + 截止时间）。',
+  '信息不足处标注「待确认」，不要编造。',
+].join('\n')
+
+const INSTRUCTION_INLINE = '请据此生成会议纪要：按「背景 / 讨论要点 / 决议 / 行动项（负责人 + 截止时间）」组织，'
   + '结论要具体，行动项必须能落到人和日期；信息不足的地方标注「待确认」，不要编造。'
 
 function fmtDuration(seconds) {
@@ -27,47 +35,55 @@ function fmtDuration(seconds) {
 /**
  * 构造交接消息。
  * @param {object} input
- * @param {string} input.meetingId 会议 id（必填，agent 据此定位产物）
- * @param {string} [input.label] 会议标签
- * @param {number} [input.durationSec] 时长
- * @param {string} input.transcript 确认后的转写正文
- * @param {number} [input.maxChars] 内联上限，默认 8000
- * @returns {{ok:true, text:string, mode:'inline'|'summary', chars:number} | {ok:false, reason:string}}
+ * @param {string} input.meetingId
+ * @param {string} [input.label]
+ * @param {number} [input.durationSec]
+ * @param {string} [input.outputPath] 产物路径（相对工作区或绝对）
+ * @param {'workspace'|'fallback'} [input.outputMode]
+ * @param {string} [input.workspaceRoot] 工作区根（workspace 模式下用于说明）
+ * @param {string} [input.transcript] 仅在无产物路径时用于内联退化
+ * @param {number} [input.maxChars]
  */
-export function buildHandoffMessage({ meetingId, label, durationSec, transcript, maxChars = MAX_INLINE_CHARS } = {}) {
+export function buildHandoffMessage({
+  meetingId,
+  label,
+  durationSec,
+  outputPath,
+  outputMode = 'workspace',
+  workspaceRoot,
+  transcript,
+  maxChars = MAX_INLINE_CHARS,
+} = {}) {
   if (typeof meetingId !== 'string' || meetingId.trim() === '') {
     return { ok: false, reason: '缺少会议 id，无法让会话定位这场会议' }
   }
 
-  const body = typeof transcript === 'string' ? transcript.trim() : ''
-  if (body === '') {
-    return { ok: false, reason: '转写内容为空，没什么可交给会话' }
+  const name = (typeof label === 'string' && label.trim() !== '') ? label.trim() : '(未命名)'
+  const header = `【会记】会议 ${meetingId}（${name}，${fmtDuration(durationSec)}）`
+  const hasPath = typeof outputPath === 'string' && outputPath.trim() !== ''
+
+  if (hasPath) {
+    const root = outputMode === 'workspace' && typeof workspaceRoot === 'string' && workspaceRoot.trim() !== ''
+      ? `工作区根：\`${workspaceRoot.trim()}\`\n`
+      : ''
+    const text = `${header}\n${root}${INSTRUCTION_FILE(outputPath.trim())}\n`
+    return { ok: true, mode: 'file', text, chars: text.length }
   }
 
-  const name = (typeof label === 'string' && label.trim() !== '') ? label.trim() : '(未命名)'
-  const duration = fmtDuration(durationSec)
-  const header = `【会记】会议 ${meetingId}（${name}，${duration}）`
-  const pointer = `转写全文：transcripts/${meetingId}.md`
+  const body = typeof transcript === 'string' ? transcript.trim() : ''
+  if (body === '') return { ok: false, reason: '既没有产物路径，也没有转写内容' }
 
   if (body.length <= maxChars) {
-    return {
-      ok: true,
-      mode: 'inline',
-      chars: body.length,
-      text: `${header}\n${INSTRUCTION}\n\n${body}\n`,
-    }
+    return { ok: true, mode: 'inline', chars: body.length, text: `${header}\n${INSTRUCTION_INLINE}\n\n${body}\n` }
   }
 
-  // 超长：只给摘要（前 800 字）+ 指针，避免把整篇转写塞进一次消息
   const head = body.slice(0, 800).replace(/\s+$/, '')
   const lines = body.split('\n').length
   return {
     ok: true,
     mode: 'summary',
     chars: body.length,
-    text: `${header}\n${INSTRUCTION}\n\n`
-      + `转写共 ${body.length} 字 / ${lines} 行，超过单次消息上限（${maxChars} 字），这里只放开头摘要，`
-      + `完整内容请读取 ${pointer}（会议 id ${meetingId}）。\n\n`
-      + `${head}…\n`,
+    text: `${header}\n${INSTRUCTION_INLINE}\n\n`
+      + `转写共 ${body.length} 字 / ${lines} 行，超过单次消息上限（${maxChars} 字），这里只放开头摘要。\n\n${head}…\n`,
   }
 }

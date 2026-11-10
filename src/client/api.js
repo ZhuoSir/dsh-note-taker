@@ -90,13 +90,13 @@ export function createApi({ baseUrl = '', fetchImpl = globalThis.fetch, timeoutM
   }
 
   return {
-    list: ({ limit } = {}) => request('/list', { query: { limit } }),
-    detail: ({ id }) => request('/detail', { query: { id } }),
+    list: ({ limit, sessionId } = {}) => request('/list', { query: { limit, sessionId } }),
+    detail: ({ id, sessionId } = {}) => request('/detail', { query: { id, sessionId } }),
     health: () => request('/health'),
     getConfig: () => request('/config'),
     saveConfig: (patch) => request('/config', { method: 'POST', body: patch }),
-    transcribe: ({ id, engine } = {}) => longAction('/transcribe', { id, engine }, { engine }),
-    minutes: ({ id, force } = {}) => request('/minutes', { method: 'POST', body: { id, force } }),
+    transcribe: ({ id, engine, sessionId } = {}) => longAction('/transcribe', { id, engine, sessionId }, { engine }),
+    minutes: ({ id, force, sessionId } = {}) => request('/minutes', { method: 'POST', body: { id, force, sessionId } }),
     record: ({ action, label } = {}) => request('/record', { method: 'POST', body: { action, label } }),
     rename: ({ id, label } = {}) => request('/label', { method: 'POST', body: { id, label } }),
     importAudio: ({ path, label } = {}) => request('/import', { method: 'POST', body: { path, label } }),

@@ -132,7 +132,7 @@ export function QuickPanel({ sessionId } = {}) {
     // 先取配置里的引擎，显式传下去（云端会触发二次确认）
     const config = await api.getConfig()
     const engine = config.ok === false ? undefined : config.config?.asr?.engine
-    const accepted = await api.transcribe({ id: meetingId, engine })
+    const accepted = await api.transcribe({ id: meetingId, engine, sessionId })
     if (accepted.ok === false) {
       setPhase('error')
       setError(errorText(accepted.code, accepted.detail))
@@ -143,13 +143,21 @@ export function QuickPanel({ sessionId } = {}) {
     const deadline = Date.now() + TRANSCRIBE_TIMEOUT_MS
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, POLL_MS))
-      const detail = await api.detail({ id: meetingId })
+      const detail = await api.detail({ id: meetingId, sessionId })
       if (detail.ok === false) { setPhase('error'); setError(errorText(detail.code, detail.detail)); return }
 
       const status = detail.meeting?.status?.transcribe
       if (status === 'done') {
         const label = detail.meeting?.label ?? ''
-        setCurrent({ meetingId, label, startedAt: detail.meeting?.startedAt, durationSec: detail.meeting?.durationSec ?? durationSec })
+        setCurrent({
+          meetingId,
+          label,
+          startedAt: detail.meeting?.startedAt,
+          durationSec: detail.meeting?.durationSec ?? durationSec,
+          outputPath: detail.outputPath ?? null,
+          outputMode: detail.outputMode ?? 'fallback',
+          workspaceRoot: detail.workspaceRoot ?? null,
+        })
         setLabelDraft(label)
         setTranscript(detail.transcript ?? '')
         setPhase('confirm')
@@ -179,6 +187,9 @@ export function QuickPanel({ sessionId } = {}) {
       meetingId: current.meetingId,
       label: current.label,
       durationSec: current.durationSec,
+      outputPath: current.outputPath,
+      outputMode: current.outputMode,
+      workspaceRoot: current.workspaceRoot,
       transcript,
     })
     if (built.ok === false) { setPhase('error'); setError(built.reason); return }
@@ -266,6 +277,13 @@ export function QuickPanel({ sessionId } = {}) {
               onKeyDown: (event) => { if (event.key === 'Enter') event.currentTarget.blur() },
             }),
             createElement('span', { style: styles.muted }, formatDuration(current.durationSec)),
+          )
+        : null,
+
+      // 产物位置：让用户知道文件落在哪（R-01）
+      current?.meetingId && current.outputPath
+        ? createElement('div', { style: styles.muted },
+            `产物：${current.outputPath}${current.outputMode === 'workspace' ? '（工作区）' : '（回落数据目录）'}`,
           )
         : null,
 
