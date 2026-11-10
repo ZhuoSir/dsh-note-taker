@@ -2,21 +2,28 @@
 /**
  * 会记（dsh-note-taker）仓库校验入口。
  *
- * 两段：结构清单（R-09）+ 单测（R-10）。
- * `--structure-only` 只跑第一段——任务 T-01 落骨架期用它；T-10 之后默认跑全量。
+ * 三段可组合：
+ *   默认            结构清单（R-09）+ 全部单测（R-10）
+ *   --structure-only 只做结构检查
+ *   --tests-only     只跑单测
+ *
+ * 单测文件显式枚举后传给 `node --test`：直接把目录交给 node 会被当成测试文件路径。
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
-const structureOnly = process.argv.includes('--structure-only')
+const args = new Set(process.argv.slice(2))
+const structureOnly = args.has('--structure-only')
+const testsOnly = args.has('--tests-only')
 
 /**
  * 必需文件清单。随任务推进增长：
- * T-06 加 py/record.py 与 py/_common.py，T-07 加 py/transcribe.py，T-10 收口单测。
+ * T-03 加 lib/meetings.js，T-04 加 lib/parse.js，T-05 加 lib/minutes.js，
+ * T-06/T-07 加 py/ 下的 sidecar。
  */
 const REQUIRED = [
   'package.json',
@@ -40,15 +47,24 @@ function checkStructure() {
 }
 
 function runTests() {
-  if (!existsSync(join(ROOT, 'tests'))) {
-    console.error('单测: tests/ 尚未建立（T-04 起逐步补齐，T-10 收口）')
+  const testsDir = join(ROOT, 'tests')
+  if (!existsSync(testsDir)) {
+    console.error('单测: tests/ 目录不存在')
     return false
   }
-  const result = spawnSync(process.execPath, ['--test', 'tests/'], { cwd: ROOT, stdio: 'inherit' })
+  const files = readdirSync(testsDir)
+    .filter((name) => name.endsWith('.test.js'))
+    .sort()
+    .map((name) => join('tests', name))
+  if (files.length === 0) {
+    console.error('单测: tests/ 下没有 *.test.js')
+    return false
+  }
+  const result = spawnSync(process.execPath, ['--test', ...files], { cwd: ROOT, stdio: 'inherit' })
   return result.status === 0
 }
 
-if (!checkStructure()) process.exit(1)
+if (!testsOnly && !checkStructure()) process.exit(1)
 if (structureOnly) {
   console.log('（--structure-only：跳过单测）')
   process.exit(0)
