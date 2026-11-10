@@ -7,6 +7,7 @@
 | spec | spec版本 | 状态 | SQL件 | 配置项 | 备注 |
 |---|---|---|---|---|---|
 | specs/20261110_project-skeleton | v1.0.0 | 已合并 | 0 | 0 | 基本链路：录音 → 转写 → 纪要；T-11 演练延期补验，见该 spec 的 completion.md |
+| specs/20261110_add-cloud-asr | v0.1.0 | 立项中 | 0 | 0 | 云端 ASR（阿里云百炼 qwen-audio-asr-flash），本地引擎保留；先做整段文件 |
 
 ## 纳入缺陷（随版修复批）
 
