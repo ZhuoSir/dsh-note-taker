@@ -43,7 +43,27 @@ function makeWav(path) {
   return path
 }
 
-function makeService({ resolver } = {}) {
+// 假云端：让「导入后自动转写」的用例不依赖本机模型（否则并行跑测试时偶发超时）
+function cloudStub() {
+  const calls = []
+  const fetchImpl = async (url, options) => {
+    calls.push(JSON.parse(options.body))
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        request_id: 'req-1',
+        sentence: {
+          sentence_id: 1, begin_time: 0, end_time: 1000, text: '周会开始。',
+          words: [{ begin_time: 0, end_time: 900, text: '周会开始', punctuation: '。' }],
+        },
+      }),
+    }
+  }
+  return { fetchImpl, calls }
+}
+
+function makeService({ resolver, cloud } = {}) {
   const root = tempRoot()
   const workspace = resolver ? tempRoot('note-taker-ws-') : null
   const logger = quietLogger()
@@ -51,18 +71,21 @@ function makeService({ resolver } = {}) {
     config: {
       root, model: 'tiny', threads: 2,
       ...(workspace ? { resolveWorkspaceDir: () => workspace } : {}),
+      ...(cloud ? { cloudSource: { name: 'test', get: (key) => (key === 'DASHSCOPE_API_KEY' ? 'sk-test' : null) } } : {}),
     },
     logger,
     llm: { stream: () => (async function* gen() {})() },
+    ...(cloud ? { cloudFetch: cloud.fetchImpl } : {}),
   })
-  return { service, root, workspace, logger }
+  return { service, root, workspace, logger, cloud }
 }
 
 test('正常导入：建会议、label 来自文件名、返回产物路径', async () => {
-  const { service, workspace } = makeService({ resolver: true })
+  const cloud = cloudStub()
+  const { service, workspace } = makeService({ resolver: true, cloud })
   const audio = makeWav(join(tempRoot('note-taker-src-'), '周会录音.wav'))
 
-  const result = await service.importAudio({ fromPath: audio, transcribe: true, sessionId: 'sess-1' })
+  const result = await service.importAudio({ fromPath: audio, transcribe: true, sessionId: 'sess-1', engine: 'cloud' })
   assert.equal(result.ok, true, JSON.stringify(result))
   assert.equal(result.label, '周会录音')
   assert.equal(result.transcribed, true)
@@ -155,11 +178,12 @@ test('自动转写失败：导入仍成功，带 transcribeError', async () => {
 })
 
 test('显式 workspaceDir（来自工具 exec.cwd）直接落工作区，不依赖 sessionId 匹配', async () => {
-  const { service } = makeService()
+  const cloud = cloudStub()
+  const { service } = makeService({ cloud })
   const workspace = tempRoot('note-taker-ws-')
   const audio = makeWav(join(tempRoot('note-taker-src-'), '会议.wav'))
 
-  const result = await service.importAudio({ fromPath: audio, transcribe: true, workspaceDir: workspace })
+  const result = await service.importAudio({ fromPath: audio, transcribe: true, workspaceDir: workspace, engine: 'cloud' })
   assert.equal(result.ok, true, JSON.stringify(result))
   assert.equal(result.outputMode, 'workspace', '显式目录应生效')
   assert.ok(result.outputFile.startsWith(workspace))

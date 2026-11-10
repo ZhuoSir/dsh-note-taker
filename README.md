@@ -1,176 +1,264 @@
-﻿# 会记 dsh-note-taker
+# 会记 · dsh-note-taker
 
-DSH 插件：**录音 → 本机转写 → 会议纪要**。录音与转写全程在本机；纪要由你在 DSH 里已配置的模型生成。
+[![dsh-plugin](https://img.shields.io/badge/DSH-plugin-4f8cff)](https://github.com/ZhuoSir/dsh-note-taker)
+[![node](https://img.shields.io/badge/node-%E2%89%A520-3c873a)](https://nodejs.org)
+[![license](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
-> 当前进度：spec `specs/20261110_project-skeleton` v1.0.0，**10/11 任务完成**。
-> 录音、转写、纪要三条链路均已实测（录音 16k/单声道、转写 rtf≈0.1、单测 75 全绿）；
-> T-11 端到端演练因本机麦克风无语音输入、且插件未在可用的 DSH profile 中挂载而延期，详见
-> `specs/20261110_project-skeleton/completion.md`。
-> 未落地的东西本文档不会写成「已支持」。
+> DeepSeek Harness 插件：**录音 → 转写 → 会议纪要**。
+> 转写支持本机 faster-whisper 与阿里云百炼（含说话人分离）两条路；纪要在会话里生成，
+> 产物直接落在**当前会话的工作区**，agent 读得到、你能改得动。
 
-## 目录结构
+<!-- 说明：本 README 只写实测过的能力；未验证的部分统一放在「已知限制」。 -->
 
-```
-package.json          插件元数据：dsh.bundle.patch 指向 cordis.patch.yml
-cordis.patch.yml      把会记插入 profile 的插件名册
-lib/                  宿主侧编排（Node ESM）
-  index.js            插件入口：name / inject / apply，启动与配置日志
-py/                   Python sidecar（录音、转写）——重活都在这边
-scripts/              仓库脚本
-  verify.mjs          结构清单 + 单测的校验入口
-tests/                单测（node --test）
-docs/                 方案与设计文档
-specs/                需求/方案/任务/台账（spec 机制）
-releases/             里程碑台账
-```
+## 它解决什么问题
 
-## 分层职责
+开完会，录音在手机里、转写在某个网站里、纪要在另一份文档里——最后还得手工粘一遍。
 
-| 层 | 职责 | 不做什么 |
-|---|---|---|
-| `lib/` | 工具注册、状态机、持久化、提示组装、调用已配置模型 | 不解码音频、不做 ASR |
-| `py/` | 采集麦克风、跑 faster-whisper 转写 | 不碰会议索引、不调模型 |
-| 两侧契约 | **文件路径 + 一行 JSON** | 不共享内存、不互相 import |
+会记把它收进 DSH：**边开会边录，散会点一下，转写出来、你扫一眼改错字、交给会话，纪要就写进你项目的 `meetings/` 目录。**
+
+关键是三件事都发生在你能控制的地方：
+
+| 环节 | 在哪 |
+|---|---|
+| 录音 | 本机麦克风，落盘到数据目录 |
+| 转写 | 本机 faster-whisper（离线）或阿里云百炼（联网） |
+| 纪要 | **你当前的会话**，由你在 DSH 里配置的模型生成 |
+
+## 功能
+
+- **双转写引擎**：本机 faster-whisper（离线、免费）／阿里云百炼 `qwen-audio-3.1-asr-flash`（联网、更准、支持说话人分离）
+- **说话人分离**：云端引擎可输出 `S0 / S1`，产物里带标签
+- **会话内驱动**：丢一段音频给 agent，说「整理成纪要」，剩下它自己走
+- **产物单文件**：`meetings/<id>.md` 里同时有元信息、`## 转写`、`## 纪要`，agent 读写同一份
+- **配置页**：模型、Key、接口地址、数据目录、引擎选择都在设置里，改完热生效
+- **长音频分片**：47 分钟会议按 5 分钟切片串行识别，失败自动重试一次
+- **不静默失败**：错误信息透传服务端原文，不把「路由 500」敷衍成「识别失败」
 
 ## 安装
 
-1. Node.js ≥ 20（开发机实测 24.16）。
-2. Python 3.10+（开发机实测 3.14.5），转写依赖 `faster-whisper`（若尚未安装，见下）。
-3. 把本仓库加入某个 DSH profile 的 `bundles`（或按你的 profile 管理方式安装）。
+要求：Node ≥ 20、Python ≥ 3.10（本机转写才需要），以及一个可用的 DSH profile。
 
-### Python 依赖的安装方式（重要）
+```powershell
+# 装进某个 profile（profile 名按你自己的来）
+dsh plugin --profile web add D:\path\to\dsh-note-taker
 
-本机工作区带 ACL 限制，`pip install` 会在原子替换阶段失败（见 `specs/_project/lessons.md` L-02）。
-因此**一律走离线安装**：
-
-```
-node scripts/install-py.mjs
+# 重启宿主，让插件激活（工具与页面要重启才生效）
+dsh web --port 8099 --no-open
 ```
 
-该脚本下载 wheel 并解包到 `pylibs/`，再用 `PYTHONPATH` 注入，不做 pip 安装。
-README 与代码里都不应出现 `pip install` 作为安装路径。
+安装后确认两处：
 
-### 转写模型（首次必须做一次）
+1. **设置 → 会记**：能打开，看到「配置 / 历史纪要」两个 tab
+2. **会话输入框右侧**：有「会记」按钮
 
-转写模型不随仓库分发。HF 直连在国内常连不上（lessons L-08），仓库自带的下载脚本走镜像、
-按文件落到本地目录，转写时优先读本地目录：
+> 桌面版（Electron）的 `desktop` profile 由应用独占，CLI 不能改；请在应用内安装或使用可 CLI 管理的 profile。
+
+## 快速开始
+
+### 方式一：在会话里导入音频（推荐）
+
+把音频路径给 agent，直接说：
 
 ```
-python py/fetch_model.py --model small --out-dir "%LOCALAPPDATA%\note-taker-models"
+导入 D:\会议\周会.m4a 并整理成纪要
 ```
 
-- 档位：`tiny` 75MB / `base` 145MB / `small` 480MB / `medium` 1.5GB（本机可用内存 3 GB 出头，建议 `small`）
-- **中文简体是提示词管出来的，不是模型大小管出来的**：Whisper 默认倾向输出繁体，代码里已内置
-  `以下是普通话会议记录，请用简体中文输出。`（`py/transcribe.py` 的 `DEFAULT_ZH_PROMPT`）。
-  实测加提示后 `tiny`/`small` 都输出简体、术语正确，仅剩同音错字（决议→绝议），
-  正式使用建议在 `--prompt` 里塞参会人姓名与项目术语
-- 镜像可用 `NOTE_TAKER_HF_ENDPOINT` 覆盖（默认 `https://hf-mirror.com`，要直连官方就设成 `https://huggingface.co`）
-- 下载速度实测约 1.4 MB/s，`small` 约六分钟；先用 `tiny` 跑通链路也行
+agent 会调 `meeting_import`，你拿到的是产物文件路径，它自己读文件、写纪要。
 
-## 云端 ASR（可选）
+### 方式二：录音
 
-除本机 faster-whisper 外，还可以用阿里云百炼的**非实时语音识别 HTTP 接口**
-（`qwen-audio-3.0-asr-flash`）。两条路径产出的 `transcripts/<id>.md|json` 完全同构，
-下游解析与纪要生成不区分引擎。
+会话输入框右侧「会记」→ 开始录音 → 停止 → 等识别 → **检查转写、改错字** → 「交给会话生成纪要」。
 
-### 配置
+确认这一步是有意留的：语音识别一定有错字，让机器直接写纪要，错的地方会一路错到底。
+
+## 工具
+
+插件向 agent 暴露 7 个工具：
+
+| 工具 | 作用 | 关键点 |
+|---|---|---|
+| `meeting_import` | 导入音频并转写 | 接受本地路径或附件路径，**可无扩展名**；返回 `outputFile` 绝对路径 |
+| `meeting_transcribe` | 对已有会议重跑转写 | 可指定引擎 / 本机档位 |
+| `meeting_minutes` | 生成纪要（插件侧调模型） | 结构不合格不落盘 |
+| `meeting_record_start` / `meeting_record_stop` | 录音起停 | 落盘 16 kHz 单声道 |
+| `meeting_list` / `meeting_status` | 查看会议与状态 | — |
+
+`meeting_import` 的返回示例：
+
+```json
+{
+  "ok": true,
+  "meetingId": "20261110-1725-d532",
+  "label": "XXX·XXX 2",
+  "durationSec": 2826.52,
+  "transcribed": true,
+  "segments": 507,
+  "chars": 16597,
+  "outputPath": "meetings/20261110-1725-d532.md",
+  "outputFile": "D:/work/demo/meetings/20261110-1725-d532.md",
+  "outputMode": "workspace"
+}
+```
+
+`outputFile` 是给工具用的绝对路径；`outputPath` 是给人看的相对路径。
+
+## 页面
+
+### 设置 → 会记
+
+**配置 tab**：默认引擎（本地/云端）、本地模型档位、分片秒数、云端 API Key（只回掩码）、接口地址、云端模型名、数据目录（注明需重启）。
+
+保存后立即生效（下次请求就读取新配置），并在提示里回显实际生效值。
+
+**历史纪要 tab**：只列**有纪要**的会议，点开看正文。
+
+### 会话输入框旁的卡片
+
+```
+会记                        云端可用 · qwen-audio-3.1-asr-flash
+[开始录音]                                    [刷新]
+识别中… 已等待 0:12
+[ 11-10 16:26          ]  0:42        ← 会议名可就地改，空着显示时间
+产物：meetings/20261110-1626-3d64.md（工作区）
+┌──────────────────────────────┐
+│ 识别结果（可改错字）· 674 字    │
+│ [可编辑的转写文本]              │
+│ [交给会话生成纪要] [重新录]      │
+└──────────────────────────────┘
+```
+
+## 配置
+
+配置文件：`<数据目录>/config.json`。优先级：**页面保存的配置 > 环境变量 > 内置默认**。
 
 | 环境变量 | 默认 | 说明 |
 |---|---|---|
-| `NOTE_TAKER_ASR_ENGINE` | `local` | 缺省引擎，可设 `cloud` |
-| `DASHSCOPE_API_KEY` | 无 | 必填；缺失时返回 `E_DEP`，**不会静默回退本地** |
-| `NOTE_TAKER_CLOUD_ASR_URL` | DashScope 公共 HTTP 地址 | 换成 `https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation` 即走业务空间专属域名 |
-| `NOTE_TAKER_CLOUD_ASR_MODEL` | `qwen-audio-3.0-asr-flash` | 可换 `qwen-audio-3.1-asr-flash`（支持润色与说话人分离） |
-| `NOTE_TAKER_ASR_TERMS` | 无 | 逗号分隔的领域词表，作为上下文提升专有名词识别 |
-| `NOTE_TAKER_ASR_CHUNK_SECONDS` | `300` | 长音频分片时长，超长会议按此切片串行识别 |
-| `NOTE_TAKER_ASR_DIARIZATION` | 关 | 设 `1` 开启说话人分离（需模型支持，见下） |
+| `NOTE_TAKER_DATA` | `~/.dsh/note-taker` | 数据目录（改这里才需重启；页面里的改动下次启动生效） |
+| `NOTE_TAKER_ASR_ENGINE` | `local` | 默认引擎 |
+| `NOTE_TAKER_MODEL` | `small` | 本机模型档位 `tiny/base/small/medium` |
+| `DASHSCOPE_API_KEY` | — | 云端 Key（也可在页面里填） |
+| `NOTE_TAKER_CLOUD_ASR_URL` | DashScope 公共地址 | 业务空间专属域名改这里 |
+| `NOTE_TAKER_CLOUD_ASR_MODEL` | `qwen-audio-3.1-asr-flash` | 支持说话人分离的型号 |
+| `NOTE_TAKER_ASR_TERMS` | — | 领域词表（与分人互斥，见下） |
+| `NOTE_TAKER_ASR_DIARIZATION` | 关 | 设 `1` 开启说话人分离 |
+| `NOTE_TAKER_ASR_CHUNK_SECONDS` | `300` | 长音频分片秒数 |
+| `NOTE_TAKER_MODEL_DIR` | `<数据目录>/models` | 本机模型目录 |
 
-### 说话人分离（说话人识别）
+### 说话人分离的两个事实
 
-- **必须用 `qwen-audio-3.1-asr-flash`**（默认模型已切到它）：传 `speaker_diarization_enabled: true` 后，
-  响应返回 `output.sentences[]`，每句带 `speaker_id`，落盘的 md 变成 `[00:00:12] S0：…`
-- **3.0 不支持**：参数会被静默忽略，`speaker_id` 恒为 `null`
-- **模型列表里可能看不到 3.1**：实测它不在 `GET /compatible-mode/v1/models` 的返回里，但直接请求可用
-- **与词表上下文互斥**：开启分人时不会再发送 `input_text` 词表——实测带着词表请求，`speaker_id` 会全部退化成 `-1`
-  （分人失效）；两者只能选一个，代码里以分人优先
-- **质量预期**：2 分钟双人样本识别出 S0/S1，但短插话（「对」「嗯」）归属不稳定，偶尔同一句被拆到两人；
-  这是当前模型的能力边界，正式纪要建议人工核对发言人
+1. **只有 `qwen-audio-3.1-asr-flash` 支持**。`3.0` 会静默忽略该参数（`speaker_id` 恒为 `null`）。
+2. **与词表上下文互斥**：开启分人时不再发送 `input_text` 词表——实测带着词表请求，`speaker_id` 会全部退化成 `-1`。代码里以分人优先。
 
-实测（2026-11-10，2 分钟现场录音）：47 段 / 853 字 / 11s / rtf 0.088，S0 7 句、S1 40 句
-
-单次调用也可覆盖：`meeting_transcribe` 的 `engine` 参数（`local` / `cloud`）。
-
-### 实测性能（本机，2026-11-10）
-
-| 样本 | 引擎 | 结果 |
-|---|---|---|
-| 2 分钟现场录音 | local `small` | 15 段 / 26s / 术语大量错字（灰度→歸度、决议→绝议） |
-| 2 分钟现场录音 | cloud | 19 段 / 12s / 术语正确（FDE、智慧食堂、XXX） |
-| **47 分钟现场录音** | cloud（10 片） | **553 段 / 15647 字 / 351s（rtf 0.124）** |
-| 47 分钟现场录音 | local `small` | 903 段 / 8141 字 / 540s（rtf 0.19），术语错误多 |
-
-结论：**云端又快又准**，但会把音频上传到阿里云；本地引擎不联网、可离线，质量取决于模型档位与录音条件。
-
-### 隐私
-
-使用 `engine=cloud` 时音频会上传至阿里云百炼（DashScope）。首次云端调用会在返回值与日志各留一次明确提示；
-本地引擎保持零外发。
-
-## 常用命令
-
-| 命令 | 作用 |
-|---|---|
-| `npm run verify` | 结构清单 + 全部单测（当前 26 项结构 + 127 单测） |
-| `npm run verify -- --structure-only` | 只做结构检查 |
-| `npm test` | 只跑单测 |
-| `node scripts/smoke-record.mjs 3` | 真录 3 秒并核对 wav 参数（需要麦克风） |
-| `node scripts/smoke-transcribe.mjs --audio <wav> tiny` | 拿真实语音跑本地转写并核对产物 |
-| `node scripts/e2e.mjs 5 tiny` | 录音→转写→纪要整链演练（纪要那步用桩模型） |
-
-Windows 控制台注意：脚本输出含中文与符号，执行前建议 `set PYTHONUTF8=1`（PowerShell: `$env:PYTHONUTF8='1'`），
-否则可能在 GBK 代码页下报编码错误（lessons L-07）。
-
-## 数据目录
-
-默认 `~/.dsh/note-taker`：
+## 产物与数据
 
 ```
-meetings.json          会议索引
-recordings/<id>.wav    录音（16kHz 单声道）
-transcripts/<id>.md    转录
-transcripts/<id>.json  分段明细
-minutes/<id>.md        纪要
-models/                本地转写模型（faster-whisper-<档位>/）
+<会话工作区>/meetings/<id>.md        ← 单文件：元信息 + ## 转写 + ## 纪要（正常路径）
+<数据目录>/meetings/<id>.md          ← 回落路径（拿不到会话工作区时）
+<数据目录>/transcripts/<id>.json     ← 段与统计（插件索引，始终在数据目录）
+<数据目录>/recordings/<id>.<ext>     ← 音频
+<数据目录>/config.json               ← 页面保存的配置
 ```
 
-**覆盖方式**：设置环境变量 `NOTE_TAKER_DATA` 指向任意可写目录。开发期务必这么做——
-会话工作区对 `~/.dsh` 只读（lessons L-06）。
+单文件结构：
 
-其他可选环境变量：
+```markdown
+# 20261110-1626-3d64 · 周会
 
-| 变量 | 默认 | 说明 |
+- 开始：2026-11-10 16:26
+- 时长：47:06
+- 引擎：cloud（qwen-audio-3.1-asr-flash）
+- 段数 / 字数：551 / 15613
+
+## 转写
+
+[00:00:00] 那这个里面变更的时候…
+[00:00:09] 但是现在还有一个好处…
+
+## 纪要
+
+（由会话生成后回写；重新生成只替换本节，转写逐字保留）
+```
+
+> `meetings/`、`*.wav`、`*.m4a`、`*.tmp` 都在 `.gitignore` 里——会议内容不进版本控制。
+
+## 实测数据
+
+同一台机器、同一份 47 分钟现场录音（`2026-11-10`）：
+
+| 指标 | 本机 `small` | 云端正线 |
 |---|---|---|
-| `NOTE_TAKER_MODEL` | `small` | faster-whisper 模型档位 |
-| `NOTE_TAKER_MODEL_DIR` | `%LOCALAPPDATA%\note-taker-models` | 本地模型目录（smoke 脚本用） |
-| `NOTE_TAKER_THREADS` | `6` | 转写线程数（本机 4P+8E，别用满） |
-| `NOTE_TAKER_HF_ENDPOINT` | `https://hf-mirror.com` | 模型下载镜像 |
-| `NOTE_TAKER_LLM_PROVIDER` / `NOTE_TAKER_LLM_MODEL` | 空（用宿主当前配置） | 生成纪要时指定的模型路由 |
+| 段数 / 字数 | 903 / 8141 | 551 / 15613 |
+| 耗时 | 540 s | 312 s |
+| 相对实时比 | 0.19 | 0.11 |
+| 术语准确度 | 错字较多（决议→绝议） | 基本正确 |
+| 联网 | 不需要 | 需要（音频上传） |
 
-## 隐私边界
+2 分钟样本的质量对照：
 
-- 音频与转写文本只在本机处理与存储，不外发。
-- **生成纪要时**，转写文本会发送给**你在 DSH 中已配置的模型服务**；首次生成前会明确提示。
+```
+本机：这个里面的变更的时候可能会需要用啥样的 比如说 我们战队是行业的 把它给限量化
+云端：这个里面变更的时候可能需要大量的，比如说我们针对行业的把它给现场化，或者说把它变成流程化的这么一个方式
+```
 
-## 已知问题
+## 开发
 
-1. **headless profile 下插件不挂载**：用 `dsh plugin add` 装进新建 profile 后，
-   `--dump-config` 能看到插件条目、模块也能 `import`，但 `apply()` 不执行、工具不出现（无报错）。
-   复现物在 `~/.dsh/profiles/notetaker-verify`，细节见 `specs/_project/lessons.md` L-10。
-   日常使用请装在 `desktop`/`web` 这类图形 profile 里，装完开一个会话确认能看到 `meeting_*` 工具。
-2. **模型首次使用要手工下载**：见上文「转写模型」，转写侧不做运行时自动下载。
+```powershell
+npm install                # 只有 esbuild 一个开发依赖
+npm run build:client       # 构建浏览器侧产物 lib/client.js
+npm run verify             # 结构清单 + 构建可重复校验 + 全部单测
+npm test                   # 只跑单测
+```
+
+### 结构
+
+```
+lib/            宿主侧（Node ESM）——工具注册、状态机、路由、产物落盘
+src/client/     浏览器侧（React）——设置页与卡片，esbuild 打成一个文件
+py/             Python sidecar——录音、解码、faster-whisper 转写
+tests/          单测（node --test）
+specs/          需求 / 方案 / 任务 / 台账（四阶段 spec 流程）
+releases/       里程碑
+docs/           方案与设计文档
+```
+
+两侧契约只有「文件路径 + 一行 JSON」，不共享内存、不互相 import。
+
+### 浏览器侧产物是特殊格式
+
+DSH 的 web 壳不用原生 ESM 加载客户端插件，而是：
+
+```js
+window.__ModuleLoader__.load({ id: 'dsh-note-taker', factory: (require) => { ... } })
+```
+
+所以 `lib/client.js` 由 esbuild 打成 CJS 再套这层外壳，`react` 与 `@deepseek-ai/*` 走 `require`。
+直接产 ESM 会在页面里报 `import failed`。
+
+## 隐私
+
+- 本机引擎：**音频与转写都不出本机**，零联网
+- 云端引擎：音频会上传阿里云百炼；首次调用会在返回值与日志里各给一次明确提示
+- Key 只在配置文件与请求头里；接口只回掩码（`sk-…cdef`），日志不记明文
+- 产物与录音默认不入库
+
+## 已知限制
+
+- **流式识别未支持**（BL-06）：目前是「停录后整段识别」，不是边说边出字
+- **说话人分离质量有限**：短插话归属不稳定，偶尔同一句被拆到两人
+- **本机麦克风**：部分机器录音为静音（无真实语音输入），这种情况用导入路径
+- **界面端到端验证**：最近一次工具签名变更后，尚未在真实会话完整复验（`specs/20261110_meeting-agent-import` T-04/T-05）
 
 ## 相关文档
 
-- 实施方案：[docs/dsh-note-taker-方案.md](docs/dsh-note-taker-方案.md)
-- 需求/方案/任务：[specs/20261110_project-skeleton/](specs/20261110_project-skeleton/)
-- 项目台账：[specs/_project/profile.md](specs/_project/profile.md)
+- `docs/dsh-note-taker-方案.md` —— 方案与里程碑
+- `specs/_project/lessons.md` —— 踩过的坑（14 条，含宿主契约漂移、PowerShell 吞模板字符串等）
+- `specs/_project/backlog.md` —— 待办（流式、音色分人、loopback 录音、长会议分块）
+
+## Spec 流程
+
+本项目用四阶段 spec 开发：**需求 → 方案 → 任务 → 实现**，三重人工确认后才写代码；
+需求变更走 CR，坑与教训进台账。目录见 `specs/`，纪律见 `AGENTS.md`。
+
+## License
+
+MIT
