@@ -43,6 +43,7 @@ const REQUIRED = [
   'lib/asr/config.js',
   'lib/asr/aggregate.js',
   'lib/asr/pcm.js',
+  'lib/asr/cloud.js',
   'py/decode_pcm.py',
   'py/_common.py',
   'py/record.py',

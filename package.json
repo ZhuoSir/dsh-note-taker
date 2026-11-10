@@ -41,5 +41,8 @@
     "node": ">=20.0.0"
   },
   "license": "MIT",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "ws": "^8.22.2"
+  }
 }
