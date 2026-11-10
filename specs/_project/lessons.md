@@ -122,3 +122,22 @@
 - 状态: active
 - 复发: ×1
 - 关联: L-04（其「造不出测试音频」的结论本轮已被推翻，需重评）
+
+## L-10 插件进了 profile 配置，但 apply 从未执行
+
+- 分类: 工具链
+- 触发场景: 想让插件在 `dsh headless` 里跑起来，以便验证需要宿主 `ctx.llm` 的真实调用
+- 坑: `dsh plugin --profile notetaker-verify add <本地目录>` 成功、`--dump-config` 里能看到
+  `- id: note-taker / name: dsh-note-taker`、从 profile 目录也能 `import('dsh-note-taker')`
+  拿到全部导出——但 headless 跑起来后：没有一条插件启动日志、数据目录没被创建（说明 `apply`
+  根本没执行）、会话里也看不到 `meeting_*` 工具。把 `inject` 临时改成只剩 `['tools']` 同样如此。
+  现象是「配置正确、模块可解析、静默不挂载」，没有任何报错可循。
+- 根因: 未查明。已排除的：包解析失败、数据目录权限、`inject: llm` 缺失、json 损坏。
+  未排除的：headless 模板下的 loader 挂载顺序、plugin 与 bundle patch 的合成差异。
+- 防再犯规则: 用它验证「需要宿主服务」的插件时，先做一个**最小可观测探针**——
+  在 `apply()` 第一行写一条日志或落一个标记文件，再跑一次；没有痕迹就说明不是业务代码问题，
+  别再往下调业务。一次探针不通过就换路子（装进用户常用 profile / 让用户手工启用），
+  不在 loader 行为上连续试错。
+- 状态: active
+- 复发: ×1
+- 关联: T-11 验证受阻；临时 profile `~/.dsh/profiles/notetaker-verify` 保留为复现物

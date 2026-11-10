@@ -21,7 +21,19 @@
 
 | 任务 | 原因分类 | 具体原因 | 处置 |
 |---|---|---|---|
-| T-11 端到端演练 | 技术阻塞 | ① 本机麦克风录到的是静音（默认输入设备存在但无真实语音输入），拿不到「真人 2–3 分钟口述」；② 插件尚未装进任何 DSH profile，没有宿主 `ctx.llm` 实例，纪要环节无法真调模型 | 延期 → 把插件加入 profile 后补验；真实录音由用户提供或换一台有声卡的机器 |
+| T-11 端到端演练 | 技术阻塞 | ① 本机麦克风录到的是静音（默认输入设备存在但无真实语音输入），拿不到「真人 2–3 分钟口述」；② 插件尚未装进可用的 DSH profile，没有宿主 `ctx.llm` 实例，纪要环节无法真调模型 | 延期 → 把插件加入 profile 后补验；真实录音由用户提供或换一台有声卡的机器 |
+
+补充尝试（2026-11-10，第二轮）：为拿到真实 `ctx.llm`，用 `dsh` CLI 建了临时 profile
+`notetaker-verify`（模板 headless）并用 `dsh plugin add` 把本仓库装进去，结果：
+
+- `dsh --dump-config` 能看到 `- id: note-taker / name: dsh-note-taker` ✓
+- 从 profile 目录 `import('dsh-note-taker')` 能拿到 `apply/inject/name/resolveConfig/version` ✓
+- 但 `dsh headless` 跑起来后：**无插件启动日志、数据目录未被创建（apply 未执行）、会话中无 `meeting_*` 工具** ✗
+- 把 `inject` 临时改成只剩 `['tools']` 结果相同；已排除包解析、目录权限、注入服务缺失
+
+结论：headless 路径无法验证真模型调用，已记 lessons L-10；临时 profile 保留为复现物。
+真模型验证仍需把插件启用在你日常使用的 profile（如 `desktop`）里——这属于改动你的运行环境，
+我没有擅自做。
 
 已做与未做的边界（诚实陈述）：
 
