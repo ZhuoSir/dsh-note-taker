@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
@@ -78,7 +78,8 @@ test('列表：未命名显示开始时间，本地引擎正常', () => {
 
 test('错误码映射为可读文案', () => {
   assert.match(errorText('E_DEP', { env: 'DASHSCOPE_API_KEY' }), /DASHSCOPE_API_KEY/)
-  assert.match(errorText('E_LLM'), /云端识别失败/)
+  assert.match(errorText('E_LLM'), /模型或网络调用失败/, '没有服务端消息时用中性文案')
+  assert.match(errorText('E_LLM', { message: '接口内部错误：boom', endpoint: '/list' }), /boom（\/list）/, '有服务端消息要原样透出并带接口')
   assert.match(errorText('E_MODEL'), /本地模型不可用/)
   assert.match(errorText('E_AUDIO'), /音频不可读/)
   assert.match(errorText('E_STATE', { message: '当前没有进行中的录音' }), /当前没有进行中的录音/)

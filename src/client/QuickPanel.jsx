@@ -67,6 +67,7 @@ export function QuickPanel({ sessionId } = {}) {
   const [seconds, setSeconds] = useState(0)
   const [elapsed, setElapsed] = useState(0)
   const [labelDraft, setLabelDraft] = useState('')
+  const [refreshError, setRefreshError] = useState(null)
   const rootRef = useRef(null)
 
   const api = useMemo(() => createApi({
@@ -76,7 +77,12 @@ export function QuickPanel({ sessionId } = {}) {
 
   const refresh = useCallback(async () => {
     const [listResult, healthResult] = await Promise.all([api.list({ limit: 3 }), api.health()])
-    if (listResult.ok === false) { setError(errorText(listResult.code, listResult.detail)); return }
+    if (listResult.ok === false) {
+      // 刷新失败是「后台拉列表」的问题，不能显示成「识别失败」误导用户
+      setRefreshError(`刷新失败：${errorText(listResult.code, listResult.detail)}`)
+      return
+    }
+    setRefreshError(null)
     setRows(listResult.meetings ?? [])
     setHealth(healthResult.ok === false ? null : healthResult)
   }, [api])
@@ -224,6 +230,7 @@ export function QuickPanel({ sessionId } = {}) {
       ),
 
       error ? createElement('div', { style: styles.error }, error) : null,
+      refreshError ? createElement('div', { style: styles.muted }, refreshError) : null,
       notice ? createElement('div', { style: styles.ok }, notice) : null,
 
       createElement('div', { style: styles.row },

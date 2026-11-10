@@ -63,9 +63,9 @@ export function createApi({ baseUrl = '', fetchImpl = globalThis.fetch, timeoutM
       if (!response.ok) {
         const code = parsed?.code ?? (response.status === 401 || response.status === 403 ? 'E_DEP' : 'E_LLM')
         return toErrorEnvelope(code, parsed?.message ?? `接口返回 HTTP ${response.status}`,
-          { ...(parsed?.detail ?? {}), httpStatus: response.status })
+          { ...(parsed?.detail ?? {}), httpStatus: response.status, endpoint: path })
       }
-      if (parsed === null) return toErrorEnvelope('E_LLM', '接口返回的不是 JSON')
+      if (parsed === null) return toErrorEnvelope('E_LLM', '接口返回的不是 JSON', { endpoint: path })
       return parsed
     } catch (error) {
       const aborted = error?.name === 'AbortError'

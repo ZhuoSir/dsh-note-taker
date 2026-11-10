@@ -78,13 +78,18 @@ export function toListRows(meetings, { limit = 20 } = {}) {
 
 /** 错误码 → 用户能看懂的话（页面不直接展示技术码） */
 export function errorText(code, detail = {}) {
+  // 服务端给了具体原因就用它——泛化文案会把真因盖掉
+  // （曾经把「路由 500」显示成「云端识别失败」，白查半天）
+  const serverMessage = typeof detail?.message === 'string' && detail.message.trim() !== '' ? detail.message.trim() : null
+  const where = typeof detail?.endpoint === 'string' ? `（${detail.endpoint}）` : ''
+
   switch (code) {
     case 'E_DEP':
       return detail?.env
         ? `缺少配置：${detail.env}，设置后重试`
-        : '缺少必要的依赖或配置，请检查插件设置'
+        : (serverMessage ?? '缺少必要的依赖或配置，请检查插件设置')
     case 'E_LLM':
-      return '云端识别失败，请稍后重试（若持续失败请检查余额与网络）'
+      return serverMessage ? `${serverMessage}${where}` : `模型或网络调用失败${where}，请稍后重试`
     case 'E_MODEL':
       return '本地模型不可用，请先下载模型或改用云端引擎'
     case 'E_AUDIO':
