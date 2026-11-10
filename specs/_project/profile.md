@@ -17,20 +17,25 @@
 
 **模块**
 
-本仓库当前**无源码**。插件代码位于外部目录 `D:\workspace\my_workspace\ai_dsh_test\dsh-note-taker`：
+本仓库自 2026-11-10 起承载全部源码（旧脚手架归档、仅作参考）。计划分层：
 
 ```
-package.json            dsh.bundle.patch → cordis.patch.yml
-cordis.patch.yml        insert: id=note-taker
-lib/index.js            注册 4 个工具（record_start/stop、transcribe、doctor）
-py/rec/record.py        录音 sidecar（soundcard，mic/system/both）
-py/asr/transcribe.py    faster-whisper 转写 + 段落对齐
-py/asr/diarize.py       sherpa-onnx 音色分人
-py/doctor.py            环境体检
-py/get_models.py        分人模型下载
+package.json            dsh.bundle.patch + dsh.client（浏览器侧）
+cordis.patch.yml        宿主侧注册行
+lib/index.js            宿主侧：工具注册 + webServer 路由
+lib/client.js           浏览器侧产物（由 src/client 构建，React 18 + 插槽）
+src/                    源码（宿主侧逻辑、解析/纪要核心、页面组件）
+py/                     Python sidecar（转写；录音与分人本版本留契约）
+README.md               目录树、分层职责、安装与调试命令
 ```
 
-用户于 2026-11-10 决定「只建机制，代码不动」，故未复制进本仓库（见 §已知技术债第 1 条）。
+参考实现（已装插件 `dsh-sessions-manager` 3.7.10）给出的机制事实：宿主侧
+`inject=['webServer',…]` + `ctx.webServer.register({kind,path,handler})`；浏览器侧
+`inject=['slots']` + `ctx.slots.inject('settings.section', () => ctx.slots.register({name,id,order,label}, Component))`；
+`package.json` 的 `dsh.client.inject` 声明客户端运行时包、`platform: 'web'`。
+
+外部旧脚手架（归档，不参与构建）：`ai_dsh_test\dsh-note-taker`，含
+`package.json` / `cordis.patch.yml` / `lib/index.js` / `py/{rec,asr}/`。
 
 **命令**
 
@@ -62,9 +67,9 @@ py/get_models.py        分人模型下载
 
 > 纪律：不得顺手改；改需另立 spec 并先考古原因。
 
-1. **插件代码无版本控制**：`ai_dsh_test\dsh-note-taker` 及其父目录都不是 git 仓库 →
-   spec 流程要求的 commit footer（`Spec:` / `Task:`）在代码侧没有落点，Task 追溯链会断。
-   首次 Implement 前必须二选一：把代码纳入本仓库，或为代码另建仓库并在 profile 记录路径。
+1. **旧脚手架无版本控制（归档，不再维护）**：`ai_dsh_test\dsh-note-taker` 及其父目录都不是
+   git 仓库。2026-11-10 用户决定「重建，旧的不动」，本仓库自建骨架后此债即消；
+   旧目录只作参考，任何改动都不再发生在那里。
 2. **sherpa-onnx 在 Python 3.14 不可用**：cp314 轮子内嵌 ORT 1.17 与编译头（API 28）不一致，
    换版本无效 → 分人功能依赖独立 3.12 运行时（方案 §5.4）。
 3. **录音全程缓存在内存**：`py/rec/record.py` 收尾才一次性写 WAV，1 小时会议峰值约 115 MB；
