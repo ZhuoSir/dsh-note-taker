@@ -1,4 +1,4 @@
-﻿> 版本: v1.0.0 | 状态: 已确认 | 更新: 2026-11-10 | 确认人: 陈卓 | 确认日期: 2026-11-10
+﻿> 版本: v1.1.0 | 状态: 已确认 | 更新: 2026-11-10 | 确认人: 陈卓 | 确认日期: 2026-11-10
 
 # 需求规格：add-cloud-asr（给会记加云端 ASR）
 
@@ -36,17 +36,20 @@ WHEN 对一次会议请求转写，
   **WHEN** 请求转写
   **THEN** 返回 `E_STATE`，`detail.field = 'engine'`
 
-### R-02 云端转写（整段音频文件）
+### R-02 云端转写（整段音频文件，非实时 HTTP）
 
 WHEN 选择云端引擎并给出音频文件，
-系统 SHALL 按百炼实时语音识别的客户端协议完成一次任务：建立 WebSocket 连接 → 发送 `run-task`
-（含模型、音频格式、采样率）→ 等 `task-started` → 分帧推送音频 → 发送 `finish-task` →
-收齐 `result-generated` 直到 `task-finished`。
+系统 SHALL 调用百炼非实时语音识别 HTTP 接口：把音频以 Base64 Data URI 放进
+`input.messages[].content[].input_audio.data`，一次请求取回识别结果。
 
-WHEN 任务结束，
-系统 SHALL 把结果按时间顺序聚合成与本地引擎同构的 `transcripts/<id>.md` 与 `.json`。
+WHEN 请求返回，
+系统 SHALL 把 `sentence` / `sentences`（若存在 `words` 则按其标点重建句级粒度）
+聚合成与本地引擎同构的 `transcripts/<id>.md` 与 `.json`。
 
-边界：音频必须整段送完才能收尾；单帧发送失败 SHALL 终止任务并以可读错误返回，不得产出半截转录。
+边界：请求失败或返回不可解析时不得产出半截转录；既有成功产物保持不变。
+
+<!-- [CR-01 v1.1.0] 原 R-02 为 WebSocket 流式协议；实测该工作空间无流式后端（chunk 后 url error），
+     依据 CR-01 改为非实时 HTTP。原句全文见 git 历史与 changes/CR-01_http-asr.md §S。 -->
 
 #### 验收场景
 
@@ -209,3 +212,32 @@ WHEN 执行 `npm run verify`，
 
 - 模型名以哪个为准（`qwen-audio-3.0-asr-flash` 还是文档示例的 `-3.1-` 版）？我先按可配置 + 默认文档示例写，
   实测时定。
+
+### R-11 长音频分片（CR-01 新增）
+
+WHEN 音频时长超过单请求上限（默认按 5 分钟一片），
+系统 SHALL 切片后逐片识别，并按片起始偏移累加时间戳，合并成与一次性识别同构的结果。
+
+边界：分片不得丢字节；合并后时间戳必须单调递增。
+
+#### 验收场景
+
+- **GIVEN** 25 秒音频、分片阈值 10 秒
+  **WHEN** 云端转写
+  **THEN** 发出 3 次请求，合并后时间轴连续
+- **GIVEN** 47 分钟音频、默认 5 分钟一片
+  **WHEN** 云端转写
+  **THEN** 10 次请求，产物段数与总时长自洽
+
+### R-12 说话人分离参数可透传（CR-01 新增）
+
+WHEN 配置开启且模型支持 `speaker_diarization_enabled`，
+系统 SHALL 透传该参数，并把响应里的 `speaker_id` 落进 segments。
+
+边界：模型不支持时不发送该参数；本版不默认开启。
+
+#### 验收场景
+
+- **GIVEN** 响应含 `output.sentences[]` 与 `speaker_id`
+  **WHEN** 聚合
+  **THEN** segments 带 speakerId 字段
