@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 会话输入框旁的会记卡片（conversation.input.right）。
  *
  * 流程（R-03/R-05/R-06/R-07）：
@@ -12,7 +12,7 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 
 import { createApi } from './api.js'
 import { buildHandoffMessage } from './handoff.js'
-import { copyText, getConversation, hostStatusText } from './host.js'
+import { copyText, hostStatusText, sendToSession } from './host.js'
 import { capabilitiesFrom, errorText, formatDuration } from './logic.js'
 import { theme } from './theme.js'
 
@@ -55,7 +55,7 @@ const PHASE_TEXT = {
   error: '出错',
 }
 
-export function QuickPanel() {
+export function QuickPanel({ sessionId } = {}) {
   const [open, setOpen] = useState(false)
   const [rows, setRows] = useState([])
   const [health, setHealth] = useState(null)
@@ -175,17 +175,13 @@ export function QuickPanel() {
     if (built.ok === false) { setPhase('error'); setError(built.reason); return }
 
     setPhase('sending')
-    const conversation = getConversation()
-    if (conversation && typeof conversation.send === 'function') {
-      try {
-        await conversation.send(built.text)
-        setPhase('sent')
-        setNotice(`已发送到会话（${built.mode === 'summary' ? '摘要模式' : '全文'}，${built.chars} 字）`)
-        return
-      } catch (sendError) {
-        setError(`发送失败：${String(sendError?.message ?? sendError).slice(0, 80)}`)
-      }
+    const sent = await sendToSession({ sessionId, text: built.text })
+    if (sent.ok) {
+      setPhase('sent')
+      setNotice(`已发送到会话（${built.mode === 'summary' ? '摘要模式' : '全文'}，${built.chars} 字）`)
+      return
     }
+    setError(`无法自动发送：${sent.reason}`)
 
     // 兜底：复制到剪贴板，并说明真实情况
     const copied = await copyText(built.text)
@@ -193,7 +189,7 @@ export function QuickPanel() {
     setNotice(copied.ok
       ? '宿主不支持自动发送，文本已复制到剪贴板，请粘贴到输入框发送'
       : `无法发送也无法复制（${copied.reason}），请手动重试`)
-  }, [current, transcript])
+  }, [current, transcript, sessionId])
 
   const reset = useCallback(() => {
     setPhase('idle'); setCurrent(null); setTranscript(''); setError(null); setNotice(null)

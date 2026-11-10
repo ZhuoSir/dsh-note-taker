@@ -35,7 +35,13 @@ export function apply(ctx) {
   try {
     ctx.slots.inject('conversation.input.right', function* () {
       yield ctx.slots.register(
-        { name: 'conversation.input.right', id: 'meeting-quick', order: 60 },
+        {
+          name: 'conversation.input.right',
+          id: 'meeting-quick',
+          order: 60,
+          // 宿主把当前会话 id 传进来，发送消息必须按会话作用域走
+          inject: (sessionId) => ({ sessionId }),
+        },
         QuickPanel,
       )
     })

@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -92,6 +92,6 @@ test('apply 会触发宿主能力探测（否则面板永远显示「尚未探�
     inject: (deps, callback) => { injected = deps; probes += 1; void callback },
   })
 
-  assert.ok(injected.includes('conversation'), '必须尝试注入 conversation')
+  assert.ok(injected.includes('sessions'), '必须尝试注入 sessions（会话作用域发送的前提）')
   assert.equal(probes, 1)
 })
