@@ -6,7 +6,7 @@
 
 | spec | spec版本 | 状态 | SQL件 | 配置项 | 备注 |
 |---|---|---|---|---|---|
-| specs/20261110_project-skeleton | v1.0.0 | Implement中 | 0 | 0 | 基本链路：录音 → 转写 → 纪要（页面管理移出，记 BL-01）；T-11 演练待补，见该 spec 的 completion.md |
+| specs/20261110_project-skeleton | v1.0.0 | 已合并 | 0 | 0 | 基本链路：录音 → 转写 → 纪要；T-11 演练延期补验，见该 spec 的 completion.md |
 
 ## 纳入缺陷（随版修复批）
 
