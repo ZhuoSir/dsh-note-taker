@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 会话输入框旁的会记快捷面板（conversation.input.right 插槽）。
  *
  * 只做三件事：录音起停（带计时）、看最近 3 场状态、提示去设置区看全部（R-05）。
@@ -9,27 +9,28 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 
 import { createApi } from './api.js'
 import { capabilitiesFrom, errorText, formatDuration, toListRows } from './logic.js'
+import { theme } from './theme.js'
 
 const POLL_MS = 2000
 
 const styles = {
   root: { position: 'relative', display: 'inline-block' },
   trigger: (active) => ({
-    padding: '4px 10px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
-    border: `1px solid ${active ? 'rgba(90,150,255,0.6)' : 'rgba(127,127,127,0.35)'}`,
-    background: active ? 'rgba(90,150,255,0.12)' : 'transparent', color: 'inherit',
+    padding: '4px 10px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+    border: `1px solid ${active ? theme.accentBorder : theme.border}`,
+    background: active ? theme.accentBg : 'transparent', color: theme.text,
   }),
   panel: {
     position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 40, width: 320,
     padding: 12, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 8,
-    border: '1px solid rgba(127,127,127,0.3)', fontSize: 12,
-    background: 'var(--dsh-elevated-surface, rgba(24,24,26,0.98))',
-    boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
+    border: `1px solid ${theme.border}`, fontSize: 12,
+    background: theme.bg, color: theme.text, fontFamily: theme.font,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
   },
   row: { display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' },
-  btn: { padding: '4px 10px', borderRadius: 8, border: '1px solid rgba(127,127,127,0.35)', background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 12 },
-  muted: { opacity: 0.65 },
-  error: { color: '#e5484d' },
+  btn: { padding: '4px 10px', borderRadius: 8, border: `1px solid ${theme.border}`, background: 'transparent', color: theme.text, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' },
+  muted: { color: theme.textMuted },
+  error: { color: theme.danger },
 }
 
 export function QuickPanel() {

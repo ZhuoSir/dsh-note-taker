@@ -18,31 +18,32 @@ import {
   toDetailView,
   toListRows,
 } from './logic.js'
+import { theme, toneColors } from './theme.js'
 
 const POLL_MS = 2000
 const POLL_MAX_MS = 30 * 60 * 1000
 
 const styles = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 2px', maxWidth: 980 },
+  wrap: { display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 2px', maxWidth: 980, color: theme.text, fontFamily: theme.font },
   bar: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-  card: { border: '1px solid rgba(127,127,127,0.25)', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th: { textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid rgba(127,127,127,0.25)', fontWeight: 600, opacity: 0.75 },
-  td: { padding: '6px 8px', borderBottom: '1px solid rgba(127,127,127,0.12)', verticalAlign: 'top' },
-  btn: { padding: '5px 12px', borderRadius: 8, border: '1px solid rgba(127,127,127,0.35)', background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 13 },
-  btnPrimary: { padding: '5px 12px', borderRadius: 8, border: '1px solid rgba(90,150,255,0.6)', background: 'rgba(90,150,255,0.12)', color: 'inherit', cursor: 'pointer', fontSize: 13 },
+  card: { border: `1px solid ${theme.border}`, borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 10, background: theme.bg, color: theme.text },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 13, color: theme.text },
+  th: { textAlign: 'left', padding: '6px 8px', borderBottom: `1px solid ${theme.border}`, fontWeight: 600, color: theme.textSecondary, fontSize: 12 },
+  td: { padding: '6px 8px', borderBottom: `1px solid ${theme.borderSoft}`, verticalAlign: 'top', color: theme.text },
+  btn: { padding: '5px 12px', borderRadius: 8, border: `1px solid ${theme.border}`, background: 'transparent', color: theme.text, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' },
+  btnPrimary: { padding: '5px 12px', borderRadius: 8, border: `1px solid ${theme.accentBorder}`, background: theme.accentBg, color: theme.text, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' },
   btnDisabled: { opacity: 0.45, cursor: 'not-allowed' },
-  input: { padding: '5px 10px', borderRadius: 8, border: '1px solid rgba(127,127,127,0.35)', background: 'transparent', color: 'inherit', fontSize: 13, minWidth: 220 },
-  muted: { fontSize: 12, opacity: 0.65 },
-  error: { fontSize: 12, color: '#e5484d' },
-  ok: { fontSize: 12, color: '#30a46c' },
-  pre: { margin: 0, maxHeight: 320, overflow: 'auto', fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, Consolas, monospace' },
-  detail: { display: 'grid', gridTemplateColumns: '160px 1fr', gap: '4px 12px', fontSize: 13 },
+  input: { padding: '5px 10px', borderRadius: 8, border: `1px solid ${theme.border}`, background: 'transparent', color: theme.text, fontSize: 13, minWidth: 220, fontFamily: 'inherit' },
+  muted: { fontSize: 12, color: theme.textMuted },
+  error: { fontSize: 12, color: theme.danger },
+  ok: { fontSize: 12, color: theme.success },
+  pre: { margin: 0, maxHeight: 320, overflow: 'auto', fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap', fontFamily: theme.mono, color: theme.text, background: theme.bgHover, padding: 10, borderRadius: 8 },
+  detail: { display: 'grid', gridTemplateColumns: '160px 1fr', gap: '4px 12px', fontSize: 13, color: theme.text },
   badge: (tone) => ({
     display: 'inline-block', padding: '1px 8px', borderRadius: 999, fontSize: 11,
-    border: '1px solid rgba(127,127,127,0.3)',
-    color: tone === 'error' ? '#e5484d' : tone === 'ok' ? '#30a46c' : tone === 'active' ? '#5a96ff' : 'inherit',
-    borderColor: tone === 'error' ? 'rgba(229,72,77,0.5)' : tone === 'ok' ? 'rgba(48,164,108,0.5)' : tone === 'active' ? 'rgba(90,150,255,0.5)' : 'rgba(127,127,127,0.3)',
+    border: `1px solid ${toneColors(tone).borderColor}`,
+    background: toneColors(tone).background,
+    color: toneColors(tone).color,
   }),
 }
 
@@ -217,7 +218,7 @@ export function MeetingPage() {
               listRows.map((row) => createElement('tr', {
                 key: row.id,
                 onClick: () => { setSelectedId(row.id === selectedId ? null : row.id); setShowAll(false) },
-                style: { cursor: 'pointer', background: row.id === selectedId ? 'rgba(90,150,255,0.08)' : 'transparent' },
+                style: { cursor: 'pointer', background: row.id === selectedId ? theme.accentBg : 'transparent' },
               },
                 createElement('td', { style: styles.td }, row.startedText),
                 createElement('td', { style: styles.td }, row.label),

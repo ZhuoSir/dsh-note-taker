@@ -47,6 +47,7 @@ const REQUIRED = [
   'src/client/api.js',
   'src/client/MeetingPage.jsx',
   'src/client/QuickPanel.jsx',
+  'src/client/theme.js',
   'scripts/build-client.mjs',
   'lib/asr/config.js',
   'lib/asr/aggregate.js',
