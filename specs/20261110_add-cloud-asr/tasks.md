@@ -4,7 +4,7 @@
 
 ## 1. 配置与纯函数
 
-- [ ] T-01 实现云端配置解析
+- [x] T-01 实现云端配置解析
   关联: R-03, R-04
   依赖: 无
   验证方式: `node --test tests/asr-config.test.js`——缺 `DASHSCOPE_API_KEY` 时返回 `E_DEP` 且 `detail.env` 指出变量名；全量环境变量覆盖后模型/地址/倍速/术语解析正确；术语超过 200 条时截断并返回 warning；配置来源通过注入 `source.get(key)` 对象取值（证明可替换为页面配置）
