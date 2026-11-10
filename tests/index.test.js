@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -97,4 +97,47 @@ test('数据根不可写时 apply 返回失败但不抛异常', () => {
   assert.ok(line, '子进程应正常结束并输出结果')
   assert.equal(JSON.parse(line.slice('__RESULT__'.length)).ok, false)
   assert.match(output, /数据根不可写/)
+})
+
+test('宿主有 webServer 时通过可选注入注册六条路由', () => {
+  const dataRoot = freshDataRoot()
+  const code = [
+    "import('./lib/index.js')",
+    '.then((m) => {',
+    '  const routes = []',
+    '  const ctx = { tools: { register() {} }, llm: {}, inject(deps, cb) { cb({ webServer: { register: (r) => routes.push(r.path) } }) } }',
+    '  const result = m.apply(ctx)',
+    '  console.log("__ROUTES__" + JSON.stringify({ ok: result.ok, routes: routes.sort() }))',
+    '})',
+  ].join('\n')
+
+  const out = execFileSync(process.execPath, ['-e', code], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    env: { ...process.env, NOTE_TAKER_DATA: dataRoot, PYTHONUTF8: '1' },
+  })
+  const line = out.split('\n').find((item) => item.startsWith('__ROUTES__'))
+  const result = JSON.parse(line.replace('__ROUTES__', ''))
+
+  assert.equal(result.ok, true)
+  assert.equal(result.routes.length, 6)
+  assert.ok(result.routes.includes('/note-taker/health'))
+})
+
+test('宿主没有注入能力时不抛异常，插件仍启动', () => {
+  const dataRoot = freshDataRoot()
+  const code = [
+    "import('./lib/index.js')",
+    '.then((m) => {',
+    '  const result = m.apply({ tools: { register() {} }, llm: {} })',
+    '  console.log("__OK__" + JSON.stringify({ ok: result.ok }))',
+    '})',
+  ].join('\n')
+
+  const out = execFileSync(process.execPath, ['-e', code], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    env: { ...process.env, NOTE_TAKER_DATA: dataRoot, PYTHONUTF8: '1' },
+  })
+  assert.match(out, /__OK__\{"ok":true\}/)
 })
