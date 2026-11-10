@@ -11,7 +11,7 @@
   日志断言: 缺密钥场景日志出现「密钥缺失」含变量名且不含密钥值；术语截断场景出现 WARN 含原始条数与截断后条数
   验收标准: 五类用例全绿；`config.js` 不直接读 `process.env` 之外的全局，来源可注入
 
-- [ ] T-02 实现服务端事件聚合
+- [x] T-02 实现服务端事件聚合
   关联: R-02, R-07
   依赖: 无
   验证方式: `node --test tests/asr-aggregate.test.js`——覆盖：只取 `sentence_end=true`；`heartbeat=true` 丢弃；中间结果（同 `sentence_id` 多次推送）不重复；毫秒正确转秒（160ms→0.16）；乱序到达按 `begin_time` 排序；空事件流产出空数组；`sentence` 缺字段时不抛错而是跳过并计数
