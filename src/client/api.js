@@ -63,9 +63,9 @@ export function createApi({ baseUrl = '', fetchImpl = globalThis.fetch, timeoutM
       if (!response.ok) {
         const code = parsed?.code ?? (response.status === 401 || response.status === 403 ? 'E_DEP' : 'E_LLM')
         return toErrorEnvelope(code, parsed?.message ?? `接口返回 HTTP ${response.status}`,
-          { ...(parsed?.detail ?? {}), httpStatus: response.status })
+          { ...(parsed?.detail ?? {}), httpStatus: response.status, endpoint: path })
       }
-      if (parsed === null) return toErrorEnvelope('E_LLM', '接口返回的不是 JSON')
+      if (parsed === null) return toErrorEnvelope('E_LLM', '接口返回的不是 JSON', { endpoint: path })
       return parsed
     } catch (error) {
       const aborted = error?.name === 'AbortError'
@@ -93,9 +93,12 @@ export function createApi({ baseUrl = '', fetchImpl = globalThis.fetch, timeoutM
     list: ({ limit } = {}) => request('/list', { query: { limit } }),
     detail: ({ id }) => request('/detail', { query: { id } }),
     health: () => request('/health'),
+    getConfig: () => request('/config'),
+    saveConfig: (patch) => request('/config', { method: 'POST', body: patch }),
     transcribe: ({ id, engine } = {}) => longAction('/transcribe', { id, engine }, { engine }),
     minutes: ({ id, force } = {}) => request('/minutes', { method: 'POST', body: { id, force } }),
     record: ({ action, label } = {}) => request('/record', { method: 'POST', body: { action, label } }),
+    rename: ({ id, label } = {}) => request('/label', { method: 'POST', body: { id, label } }),
     importAudio: ({ path, label } = {}) => request('/import', { method: 'POST', body: { path, label } }),
     cancelAll() {
       for (const controller of inflight) controller.abort()

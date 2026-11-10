@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * 会记（dsh-note-taker）仓库校验入口。
  *
@@ -42,13 +42,16 @@ const REQUIRED = [
   'lib/service.js',
   'lib/tools.js',
   'lib/routes.js',
+  'lib/settings.js',
   'lib/client.js',
   'src/client/index.jsx',
   'src/client/logic.js',
   'src/client/api.js',
-  'src/client/MeetingPage.jsx',
+  'src/client/SettingsPage.jsx',
   'src/client/QuickPanel.jsx',
   'src/client/theme.js',
+  'src/client/host.js',
+  'src/client/handoff.js',
   'scripts/build-client.mjs',
   'lib/asr/config.js',
   'lib/asr/aggregate.js',

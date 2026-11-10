@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 会记页面的纯逻辑（无 React / 无 DOM / 无 fetch）。
  *
  * 抽出来的目的：这一层能被单测覆盖（R-09），组件只负责把它渲染出来。
@@ -60,7 +60,9 @@ export function toListRows(meetings, { limit = 20 } = {}) {
     .slice(0, limit)
     .map((meeting) => ({
       id: meeting.id,
-      label: meeting.label || '(未命名)',
+      // 未命名不再显示占位符，直接显示开始时间，方便认领
+      label: (typeof meeting.label === 'string' && meeting.label.trim() !== '') ? meeting.label.trim() : formatDateTime(meeting.startedAt),
+      rawLabel: typeof meeting.label === 'string' ? meeting.label : '',
       startedAt: meeting.startedAt,
       startedText: formatDateTime(meeting.startedAt),
       durationText: formatDuration(meeting.durationSec),
@@ -76,13 +78,18 @@ export function toListRows(meetings, { limit = 20 } = {}) {
 
 /** 错误码 → 用户能看懂的话（页面不直接展示技术码） */
 export function errorText(code, detail = {}) {
+  // 服务端给了具体原因就用它——泛化文案会把真因盖掉
+  // （曾经把「路由 500」显示成「云端识别失败」，白查半天）
+  const serverMessage = typeof detail?.message === 'string' && detail.message.trim() !== '' ? detail.message.trim() : null
+  const where = typeof detail?.endpoint === 'string' ? `（${detail.endpoint}）` : ''
+
   switch (code) {
     case 'E_DEP':
       return detail?.env
         ? `缺少配置：${detail.env}，设置后重试`
-        : '缺少必要的依赖或配置，请检查插件设置'
+        : (serverMessage ?? '缺少必要的依赖或配置，请检查插件设置')
     case 'E_LLM':
-      return '云端识别失败，请稍后重试（若持续失败请检查余额与网络）'
+      return serverMessage ? `${serverMessage}${where}` : `模型或网络调用失败${where}，请稍后重试`
     case 'E_MODEL':
       return '本地模型不可用，请先下载模型或改用云端引擎'
     case 'E_AUDIO':

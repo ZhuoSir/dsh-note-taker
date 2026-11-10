@@ -8,7 +8,7 @@ import { theme, toneColors } from '../src/client/theme.js'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const BUNDLE = readFileSync(join(ROOT, 'lib', 'client.js'), 'utf8')
-const SOURCES = ['MeetingPage.jsx', 'QuickPanel.jsx']
+const SOURCES = ['SettingsPage.jsx', 'QuickPanel.jsx']
   .map((name) => readFileSync(join(ROOT, 'src', 'client', name), 'utf8'))
   .join('\n')
 
