@@ -35,6 +35,7 @@ const REQUIRED = [
   'lib/meetings.js',
   'lib/parse.js',
   'lib/minutes.js',
+  'lib/llm.js',
   'py/_common.py',
   'py/record.py',
   'scripts/verify.mjs',
