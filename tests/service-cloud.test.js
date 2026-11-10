@@ -184,3 +184,29 @@ test('长音频按 chunkSeconds 分片，每片一次请求', async () => {
   assert.ok(maxStart < 30, `片偏移被重复累加：最大时间戳 ${maxStart}s 超过音频时长 25s`)
   assert.ok(json.segments.length >= 6, '三片各两段应至少 6 段')
 })
+
+test('开启分人时：sentences 带 speaker_id，md 输出 S{n}：标签', async () => {
+  const fetchImpl = fakeFetch({
+    body: {
+      request_id: 'req-diar',
+      output: {
+        sentences: [
+          { sentence_id: 1, begin_time: 0, end_time: 1000, text: '我先说两句。', speaker_id: 0 },
+          { sentence_id: 2, begin_time: 1000, end_time: 2000, text: '我补充一下。', speaker_id: 1 },
+        ],
+      },
+    },
+  })
+  const ctx = makeService({ sourceEntries: { DASHSCOPE_API_KEY: 'sk-test', NOTE_TAKER_ASR_DIARIZATION: '1' }, fetchImpl })
+
+  const result = await ctx.service.transcribe({ meetingId: ctx.meetingId, engine: 'cloud' })
+  assert.equal(result.ok, true, JSON.stringify(result))
+
+  const md = readFileSync(join(ctx.root, 'transcripts', `${ctx.meetingId}.md`), 'utf8')
+  assert.match(md, /\[00:00:00\] S0：我先说两句。/)
+  assert.match(md, /\[00:00:01\] S1：我补充一下。/)
+
+  const json = JSON.parse(readFileSync(join(ctx.root, 'transcripts', `${ctx.meetingId}.json`), 'utf8'))
+  assert.deepEqual(json.segments.map((s) => s.speakerId), [0, 1])
+  assert.equal(fetchImpl.calls[0].body?.parameters?.speaker_diarization_enabled ?? JSON.parse(fetchImpl.calls[0].options.body).parameters.speaker_diarization_enabled, true)
+})

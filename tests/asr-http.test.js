@@ -194,3 +194,12 @@ test('config 的 diarization 开关会透传到请求体', async () => {
   const sent = JSON.parse(fetchImpl.calls[0].options.body)
   assert.equal(sent.parameters.speaker_diarization_enabled, true)
 })
+
+test('开启分人时不发送词表上下文（实测 input_text 会让 speaker_id 退化为 -1）', () => {
+  const withDiar = buildRequestBody({ model: 'qwen-audio-3.1-asr-flash', audioBase64: 'AA', terms: ['XXX'], diarization: true })
+  assert.equal(withDiar.input.messages[0].content.length, 1, '分人开启时不应有 input_text')
+  assert.equal(withDiar.input.messages[0].content[0].type, 'input_audio')
+
+  const noDiar = buildRequestBody({ model: 'qwen-audio-3.1-asr-flash', audioBase64: 'AA', terms: ['XXX'] })
+  assert.equal(noDiar.input.messages[0].content.length, 2, '分人关闭时保留 input_text')
+})

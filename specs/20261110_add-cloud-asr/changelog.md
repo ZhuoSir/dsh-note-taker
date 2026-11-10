@@ -25,3 +25,13 @@
 - 新增: R-11 长音频分片 / R-12 说话人分离参数可透传
 - 任务: 新增 T-10~T-14；T-04（WS 客户端）、T-05（假 WebSocket 测试）作废并已从工作树移除
 - 证据: 2 分钟真实录音云端 19 段 / rtf 0.098 / 12s；术语（FDE、智慧食堂、XXX）识别正确
+
+### 当日补记（v1.1.0 内，不升版本）
+
+- **默认模型改为 `qwen-audio-3.1-asr-flash`**：实测它不在模型列表里但直接请求可用，
+  且返回 `output.sentences[]` 带 `speaker_id`（分人）、支持文本润色
+- **说话人分离打通**：`NOTE_TAKER_ASR_DIARIZATION=1` 时请求体带 `speaker_diarization_enabled`，
+  md 输出 `S0：`/`S1：` 标签；实测 2 分钟双人样本 S0 7 句 / S1 40 句
+- **发现并处置互斥关系**：词表上下文（`input_text`）会让 `speaker_id` 全部退化为 `-1`，
+  已实现「分人优先，开启分人时不发词表」，记 lessons L-12
+- 3.0 已验证不支持分人（参数被忽略，`speaker_id` 恒 null）

@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { CLOUD_DEFAULTS, ENV, createEnvSource, parseTerms, resolveCloudAsrConfig, resolveDefaultEngine } from '../lib/asr/config.js'
@@ -23,7 +23,7 @@ test('缺密钥返回 E_DEP，并指出需要的环境变量', () => {
 test('缺省值：非实时 HTTP 端点 + 实测可用的模型名', () => {
   const result = resolveCloudAsrConfig({ source: createEnvSource({ [ENV.apiKey]: 'sk' }) })
 
-  assert.equal(result.config.model, 'qwen-audio-3.0-asr-flash')
+  assert.equal(result.config.model, 'qwen-audio-3.1-asr-flash')
   assert.match(result.config.endpoint, /\/api\/v1\/services\/aigc\/multimodal-generation\/generation$/)
   assert.equal(result.config.chunkSeconds, 300)
   assert.equal(result.config.sampleRate, 16000)

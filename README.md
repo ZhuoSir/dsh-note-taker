@@ -1,4 +1,4 @@
-# 会记 dsh-note-taker
+﻿# 会记 dsh-note-taker
 
 DSH 插件：**录音 → 本机转写 → 会议纪要**。录音与转写全程在本机；纪要由你在 DSH 里已配置的模型生成。
 
@@ -83,6 +83,20 @@ python py/fetch_model.py --model small --out-dir "%LOCALAPPDATA%\note-taker-mode
 | `NOTE_TAKER_CLOUD_ASR_MODEL` | `qwen-audio-3.0-asr-flash` | 可换 `qwen-audio-3.1-asr-flash`（支持润色与说话人分离） |
 | `NOTE_TAKER_ASR_TERMS` | 无 | 逗号分隔的领域词表，作为上下文提升专有名词识别 |
 | `NOTE_TAKER_ASR_CHUNK_SECONDS` | `300` | 长音频分片时长，超长会议按此切片串行识别 |
+| `NOTE_TAKER_ASR_DIARIZATION` | 关 | 设 `1` 开启说话人分离（需模型支持，见下） |
+
+### 说话人分离（说话人识别）
+
+- **必须用 `qwen-audio-3.1-asr-flash`**（默认模型已切到它）：传 `speaker_diarization_enabled: true` 后，
+  响应返回 `output.sentences[]`，每句带 `speaker_id`，落盘的 md 变成 `[00:00:12] S0：…`
+- **3.0 不支持**：参数会被静默忽略，`speaker_id` 恒为 `null`
+- **模型列表里可能看不到 3.1**：实测它不在 `GET /compatible-mode/v1/models` 的返回里，但直接请求可用
+- **与词表上下文互斥**：开启分人时不会再发送 `input_text` 词表——实测带着词表请求，`speaker_id` 会全部退化成 `-1`
+  （分人失效）；两者只能选一个，代码里以分人优先
+- **质量预期**：2 分钟双人样本识别出 S0/S1，但短插话（「对」「嗯」）归属不稳定，偶尔同一句被拆到两人；
+  这是当前模型的能力边界，正式纪要建议人工核对发言人
+
+实测（2026-11-10，2 分钟现场录音）：47 段 / 853 字 / 11s / rtf 0.088，S0 7 句、S1 40 句
 
 单次调用也可覆盖：`meeting_transcribe` 的 `engine` 参数（`local` / `cloud`）。
 
