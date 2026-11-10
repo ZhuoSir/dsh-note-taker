@@ -33,6 +33,7 @@ const REQUIRED = [
   'lib/logger.js',
   'lib/errors.js',
   'lib/meetings.js',
+  'lib/parse.js',
   'scripts/verify.mjs',
 ]
 
