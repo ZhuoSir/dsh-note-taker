@@ -7,7 +7,8 @@
 | spec | spec版本 | 状态 | SQL件 | 配置项 | 备注 |
 |---|---|---|---|---|---|
 | specs/20261110_project-skeleton | v1.0.0 | 已合并 | 0 | 0 | 基本链路：录音 → 转写 → 纪要；T-11 演练延期补验，见该 spec 的 completion.md |
-| specs/20261110_add-cloud-asr | v1.1.0 | 已合并 | 0 | 0 | 云端 ASR（百炼 qwen-audio-3.0-asr-flash，非实时 HTTP，CR-01 改协议）；本地引擎保留 |
+| specs/20261110_add-cloud-asr | v1.1.0 | 已合并 | 0 | 0 | 云端 ASR（百炼 qwen-audio-3.1-asr-flash，非实时 HTTP + 说话人分离，CR-01 改协议）；本地引擎保留 |
+| specs/20261110_meeting-page | v0.1.0 | 立项中 | 0 | 0 | 会记页面（设置区页面 + 输入框旁快捷入口），来自 BL-01 |
 
 ## 纳入缺陷（随版修复批）
 
