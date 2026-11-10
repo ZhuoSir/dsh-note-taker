@@ -69,7 +69,11 @@ export function toListRows(meetings, { limit = 20 } = {}) {
       engineText: ENGINE_TEXT[meeting.engine ?? 'local'] ?? meeting.engine ?? '本地',
       record: statusMeta(meeting, 'record'),
       transcribe: statusMeta(meeting, 'transcribe'),
-      minutes: statusMeta(meeting, 'minutes'),
+      // hasMinutes 来自服务端按文件判断（agent 直接写文件时状态位可能是旧的）
+      minutes: meeting?.hasMinutes === true && meeting?.status?.minutes !== 'done'
+        ? { ...statusMeta(meeting, 'minutes'), status: 'done', text: '完成', tone: 'ok', reason: null }
+        : statusMeta(meeting, 'minutes'),
+      hasMinutes: meeting?.hasMinutes === true,
       segments: meeting?.stats?.segments ?? null,
       chars: meeting?.stats?.chars ?? null,
     }))

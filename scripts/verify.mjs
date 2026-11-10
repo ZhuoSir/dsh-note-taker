@@ -43,6 +43,7 @@ const REQUIRED = [
   'lib/tools.js',
   'lib/routes.js',
   'lib/settings.js',
+  'lib/output.js',
   'lib/client.js',
   'src/client/index.jsx',
   'src/client/logic.js',

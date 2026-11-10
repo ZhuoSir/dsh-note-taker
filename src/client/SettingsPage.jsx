@@ -151,7 +151,7 @@ export function SettingsPage() {
   }, [api, openedId])
 
   const minutesRows = useMemo(
-    () => toListRows(meetings, { limit: 50 }).filter((row) => row.minutes.status === 'done'),
+    () => toListRows(meetings, { limit: 50 }).filter((row) => row.hasMinutes || row.minutes.status === 'done'),
     [meetings],
   )
 

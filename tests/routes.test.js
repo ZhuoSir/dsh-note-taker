@@ -95,7 +95,7 @@ test('detail：正常 id 透传', async () => {
   const { payload } = await invoke(routeByName(routes, 'detail'), fakeReq({ url: '/note-taker/detail?id=20261110-1000-abcd' }))
 
   assert.equal(payload.ok, true)
-  assert.deepEqual(calls[0], ['detail', { meetingId: '20261110-1000-abcd' }])
+  assert.deepEqual(calls[0], ['detail', { meetingId: '20261110-1000-abcd', sessionId: undefined }])
 })
 
 test('health 走到 capabilities', async () => {
@@ -123,7 +123,7 @@ test('transcribe：立即返回 accepted，不等待任务完成', async () => {
 
   assert.equal(payload.ok, true)
   assert.equal(payload.accepted, true)
-  assert.deepEqual(calls[0], ['transcribe', { meetingId: 'm-1', engine: 'cloud' }])
+  assert.deepEqual(calls[0], ['transcribe', { meetingId: 'm-1', engine: 'cloud', sessionId: undefined }])
   resolveTask?.({ ok: true })
 })
 
@@ -132,7 +132,7 @@ test('minutes：force 透传', async () => {
   const routes = buildRoutes({ service, logger: loggerSpy() })
   await invoke(routeByName(routes, 'minutes'), fakeReq({ method: 'POST', url: '/note-taker/minutes', body: { id: 'm-1', force: true } }))
 
-  assert.deepEqual(calls[0], ['minutes', { meetingId: 'm-1', force: true }])
+  assert.deepEqual(calls[0], ['minutes', { meetingId: 'm-1', force: true, sessionId: undefined }])
 })
 
 test('record：非法 action 被拒，start/stop 分派正确', async () => {
