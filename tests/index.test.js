@@ -149,7 +149,7 @@ test('workspace 探针：能注入时暴露可用并可按 sessionId 解析目�
     "import('./lib/index.js')",
     '.then(async (m) => {',
     '  const fakeWorkspace = { list: () => [{ id: "w1", path: "D:/work/demo", sessionIds: ["sess-1"] }] }',
-    '  const ctx = { tools: { register() {} }, llm: {}, inject(deps, cb) { cb({ workspace: fakeWorkspace }) } }',
+    '  const ctx = { tools: { register() {} }, llm: {}, inject(deps, cb) { cb({ workspaceRegistry: fakeWorkspace }) } }',
     '  const result = m.apply(ctx)',
     '  const caps = await result.service.capabilities()',
     '  console.log("__WS__" + JSON.stringify({ workspace: caps.workspace, hit: result.config.resolveWorkspaceDir("sess-1"), miss: result.config.resolveWorkspaceDir("nope") }))',
