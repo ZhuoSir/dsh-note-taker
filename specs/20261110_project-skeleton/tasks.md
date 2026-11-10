@@ -66,7 +66,7 @@
   日志断言: 出现「纪要生成开始」（meetingId/provider/model/输入字符数）与「纪要生成结束」（耗时/输出字符数/校验结果）；缺章节场景出现 WARN「纪要校验不通过」含缺失章节；模型抛错场景出现 ERROR「模型调用失败」含 provider/code/耗时——对应 plan 日志点第 12~15 行；正文与提示词**不得**出现在任何日志行
   验收标准: 真实模型跑通一次并落盘；缺章节不落盘；日志中检索不到转写正文片段
 
-- [ ] T-09 注册 6 个工具、状态机与隐私提示
+- [x] T-09 注册 6 个工具、状态机与隐私提示
   关联: R-01, R-07, R-08
   依赖: T-03, T-06, T-07, T-08
   验证方式: `npm run verify -- --tools-only` 断言注册数为 6 且名字集合精确匹配；逐条失败路径：未录音 `meeting_record_stop` → `E_STATE`；未转写 `meeting_minutes` → `E_STATE`；未知 meetingId → `E_STATE`；`limit=0` 与 `model=large` → `E_STATE` + `detail.field`；并发两次 `meeting_record_start` → 第二次 `E_STATE` 且进程不退出
