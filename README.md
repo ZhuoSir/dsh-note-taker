@@ -108,6 +108,14 @@ models/                本地转写模型（faster-whisper-<档位>/）
 - 音频与转写文本只在本机处理与存储，不外发。
 - **生成纪要时**，转写文本会发送给**你在 DSH 中已配置的模型服务**；首次生成前会明确提示。
 
+## 已知问题
+
+1. **headless profile 下插件不挂载**：用 `dsh plugin add` 装进新建 profile 后，
+   `--dump-config` 能看到插件条目、模块也能 `import`，但 `apply()` 不执行、工具不出现（无报错）。
+   复现物在 `~/.dsh/profiles/notetaker-verify`，细节见 `specs/_project/lessons.md` L-10。
+   日常使用请装在 `desktop`/`web` 这类图形 profile 里，装完开一个会话确认能看到 `meeting_*` 工具。
+2. **模型首次使用要手工下载**：见上文「转写模型」，转写侧不做运行时自动下载。
+
 ## 相关文档
 
 - 实施方案：[docs/dsh-note-taker-方案.md](docs/dsh-note-taker-方案.md)
