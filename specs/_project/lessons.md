@@ -170,3 +170,20 @@
 - 状态: active
 - 复发: ×1
 - 关联: `lib/asr/http.js` 的 `if (!diarization && terms...)`；tests/asr-http.test.js 对应用例
+
+## L-13 宿主工具契约会随版本变（output 必须带 render）
+
+- 分类: 依赖漂移
+- 触发场景: 把插件装进 web profile 后启动，得到的不是「页面看不到」而是整插件激活失败
+- 坑: `ctx.tools.register()` 在 dsh-tools ≥ 0.2 强制要求
+  `output = { schema, render, presentationMeta? }`；只写 `{ type: 'text' }` 会抛
+  `TypeError: tool "xxx" must declare output { schema, render, presentationMeta? }`，
+  且**一处失败连带整个插件不激活**（路由、客户端一起没了），表面症状却是「页面没有入口」。
+- 根因: 我们的工具定义写于旧版契约，依赖宿主版本；升级宿主后契约收紧。
+- 防再犯规则:
+  1. 插件改动后先看启动日志里有没有 `warning: N entry did not activate`，不要只看 UI
+  2. 发版前用**目标宿主版本**实跑一次激活，不只跑单测
+  3. 需要同时兼容新旧宿主时，`output` 同时给 `type: 'text'`（旧版读）与 `schema/render`（新版读）
+- 状态: active
+- 复发: ×1
+- 关联: `lib/tools.js` 的 `TEXT_OUTPUT`；tests/tools.test.js 对应用例

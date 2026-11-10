@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -57,7 +57,9 @@ test('每个工具都有描述、参数表与 execute，且输出类型为 text'
     assert.equal(typeof tool.description, 'string')
     assert.ok(tool.description.length > 10, `${tool.name} 描述太短`)
     assert.equal(typeof tool.execute, 'function')
-    assert.deepEqual(tool.output, { type: 'text' })
+    assert.equal(tool.output.type, 'text', '旧版宿主需要 type')
+  assert.equal(typeof tool.output.render, 'function', '新版宿主需要 render')
+  assert.deepEqual(tool.output.schema, { type: 'string' })
     assert.equal(typeof tool.parameters, 'object')
   }
 })
