@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 会话输入框旁的会记卡片（conversation.input.right）。
  *
  * 流程（R-03/R-05/R-06/R-07）：
@@ -13,7 +13,7 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import { createApi } from './api.js'
 import { buildHandoffMessage } from './handoff.js'
 import { copyText, hostStatusText, sendToSession } from './host.js'
-import { capabilitiesFrom, errorText, formatDuration } from './logic.js'
+import { capabilitiesFrom, errorText, formatDateTime, formatDuration } from './logic.js'
 import { theme } from './theme.js'
 
 const POLL_MS = 2000
@@ -66,6 +66,7 @@ export function QuickPanel({ sessionId } = {}) {
   const [transcript, setTranscript] = useState('')
   const [seconds, setSeconds] = useState(0)
   const [elapsed, setElapsed] = useState(0)
+  const [labelDraft, setLabelDraft] = useState('')
   const rootRef = useRef(null)
 
   const api = useMemo(() => createApi({
@@ -141,7 +142,9 @@ export function QuickPanel({ sessionId } = {}) {
 
       const status = detail.meeting?.status?.transcribe
       if (status === 'done') {
-        setCurrent({ meetingId, label: detail.meeting?.label ?? '', durationSec: detail.meeting?.durationSec ?? durationSec })
+        const label = detail.meeting?.label ?? ''
+        setCurrent({ meetingId, label, startedAt: detail.meeting?.startedAt, durationSec: detail.meeting?.durationSec ?? durationSec })
+        setLabelDraft(label)
         setTranscript(detail.transcript ?? '')
         setPhase('confirm')
         refresh()
@@ -191,8 +194,18 @@ export function QuickPanel({ sessionId } = {}) {
       : `无法发送也无法复制（${copied.reason}），请手动重试`)
   }, [current, transcript, sessionId])
 
+  const saveLabel = useCallback(async () => {
+    if (!current?.meetingId) return
+    const next = labelDraft.trim()
+    if (next === (current.label ?? '')) return
+    const result = await api.rename({ id: current.meetingId, label: next })
+    if (result.ok === false) { setError(errorText(result.code, result.detail)); return }
+    setCurrent((prev) => ({ ...prev, label: next }))
+    setError(null)
+  }, [api, current, labelDraft])
+
   const reset = useCallback(() => {
-    setPhase('idle'); setCurrent(null); setTranscript(''); setError(null); setNotice(null)
+    setPhase('idle'); setCurrent(null); setTranscript(''); setLabelDraft(''); setError(null); setNotice(null)
   }, [])
 
   const recording = phase === 'recording'
@@ -230,6 +243,25 @@ export function QuickPanel({ sessionId } = {}) {
         ? createElement('div', { style: styles.muted }, phase === 'transcribing' ? `识别中… 已等待 ${formatDuration(elapsed)}` : PHASE_TEXT[phase])
         : null,
 
+      // 当前这场会议：名字可编辑；未命名时以开始时间占位
+      current?.meetingId
+        ? createElement('div', { style: styles.row },
+            createElement('input', {
+              key: 'label',
+              type: 'text',
+              style: { ...styles.btn, flex: 1, minWidth: 0, cursor: 'text', textAlign: 'left' },
+              value: labelDraft,
+              placeholder: current.startedAt ? formatDateTime(current.startedAt) : '未命名（按时间显示）',
+              maxLength: 60,
+              title: '点这里改会议名，失焦即保存',
+              onChange: (event) => setLabelDraft(event.target.value),
+              onBlur: saveLabel,
+              onKeyDown: (event) => { if (event.key === 'Enter') event.currentTarget.blur() },
+            }),
+            createElement('span', { style: styles.muted }, formatDuration(current.durationSec)),
+          )
+        : null,
+
       // 确认区：识别完成后出现，可编辑
       phase === 'confirm' || phase === 'sending' || phase === 'sent'
         ? createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
@@ -257,16 +289,6 @@ export function QuickPanel({ sessionId } = {}) {
             createElement('button', { type: 'button', style: styles.btn, onClick: reset }, '放弃'),
           )
         : null,
-
-      createElement('div', { style: styles.muted }, '最近 3 场'),
-      rows.length === 0
-        ? createElement('div', { style: styles.muted }, '还没有会议')
-        : rows.map((meeting) => createElement('div', { key: meeting.id, style: styles.row },
-            createElement('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
-              meeting.label || '(未命名)'),
-            createElement('span', { style: styles.muted },
-              `${meeting?.status?.transcribe ?? 'pending'} · ${formatDuration(meeting.durationSec)}`),
-          )),
 
       createElement('div', { style: styles.muted }, '全部会议在 设置 → 会记'),
       createElement('div', { style: { ...styles.muted, fontSize: 10 } }, hostStatusText()),

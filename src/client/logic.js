@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 会记页面的纯逻辑（无 React / 无 DOM / 无 fetch）。
  *
  * 抽出来的目的：这一层能被单测覆盖（R-09），组件只负责把它渲染出来。
@@ -60,7 +60,9 @@ export function toListRows(meetings, { limit = 20 } = {}) {
     .slice(0, limit)
     .map((meeting) => ({
       id: meeting.id,
-      label: meeting.label || '(未命名)',
+      // 未命名不再显示占位符，直接显示开始时间，方便认领
+      label: (typeof meeting.label === 'string' && meeting.label.trim() !== '') ? meeting.label.trim() : formatDateTime(meeting.startedAt),
+      rawLabel: typeof meeting.label === 'string' ? meeting.label : '',
       startedAt: meeting.startedAt,
       startedText: formatDateTime(meeting.startedAt),
       durationText: formatDuration(meeting.durationSec),

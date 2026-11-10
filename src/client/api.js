@@ -98,6 +98,7 @@ export function createApi({ baseUrl = '', fetchImpl = globalThis.fetch, timeoutM
     transcribe: ({ id, engine } = {}) => longAction('/transcribe', { id, engine }, { engine }),
     minutes: ({ id, force } = {}) => request('/minutes', { method: 'POST', body: { id, force } }),
     record: ({ action, label } = {}) => request('/record', { method: 'POST', body: { action, label } }),
+    rename: ({ id, label } = {}) => request('/label', { method: 'POST', body: { id, label } }),
     importAudio: ({ path, label } = {}) => request('/import', { method: 'POST', body: { path, label } }),
     cancelAll() {
       for (const controller of inflight) controller.abort()

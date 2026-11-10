@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict'
+import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -198,6 +198,11 @@ test('卡片：录音中 / 识别中 / 确认区 三种阶段都能渲染', () =
   flat = JSON.stringify(withOverrides({ 0: true, 5: 'confirm', 7: '[00:00:00] 周会开始。' })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
   assert.match(flat, /交给会话生成纪要/)
   assert.match(flat, /识别结果（可改错字）/)
+
+  // 当前会议：名字输入框 + 没有最近列表
+  flat = JSON.stringify(withOverrides({ 0: true, 5: 'confirm', 7: '[00:00:00] 周会开始。', 6: { meetingId: 'm-1', label: '', startedAt: '2026-11-10T16:26:00+08:00', durationSec: 42 } })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
+  assert.doesNotMatch(flat, /最近 3 场/, '最近列表应已移除')
+  assert.match(flat, /未命名（按时间显示）|11-10 \d{2}:\d{2}/, '未命名用时间占位')
 
   // 失败态给重试
   flat = JSON.stringify(withOverrides({ 0: true, 5: 'error', 6: { meetingId: 'm-1' }, 3: '识别失败' })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))

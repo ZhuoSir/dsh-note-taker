@@ -69,9 +69,10 @@ test('列表：倒序 + limit + 派生字段', () => {
   assert.equal(rows[0].segments, 551)
 })
 
-test('列表：未命名与本地引擎的展示', () => {
+test('列表：未命名显示开始时间，本地引擎正常', () => {
   const rows = toListRows([{ ...MEETING, label: '', engine: undefined }])
-  assert.equal(rows[0].label, '(未命名)')
+  assert.match(rows[0].label, /^11-10 \d{2}:\d{2}$/, '未命名应显示时间而不是占位符')
+  assert.equal(rows[0].rawLabel, '')
   assert.equal(rows[0].engineText, '本地')
 })
 

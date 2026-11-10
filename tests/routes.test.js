@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { buildRoutes } from '../lib/routes.js'
@@ -21,6 +21,7 @@ function fakeService(overrides = {}) {
     recordStop: () => { calls.push(['recordStop']); return { ok: true, durationSec: 5 } },
     readConfig: () => { calls.push(['readConfig']); return { ok: true, config: {} } },
     saveConfig: (args) => { calls.push(['saveConfig', args]); return { ok: true, saved: [] } },
+    renameMeeting: (args) => { calls.push(['renameMeeting', args]); return { ok: true, meetingId: args.meetingId, label: args.label } },
     importAudio: (args) => { calls.push(['importAudio', args]); return { ok: true, meetingId: 'm-imp', durationSec: 60 } },
   }
   return { service: { ...base, ...overrides }, calls }
@@ -51,13 +52,13 @@ function routeByName(routes, name) {
   return routes.find((item) => item.path === `/note-taker/${name}`)
 }
 
-test('注册八条 exact 路由', () => {
+test('注册九条 exact 路由', () => {
   const { service } = fakeService()
   const routes = buildRoutes({ service, logger: loggerSpy() })
 
-  assert.equal(routes.length, 8)
+  assert.equal(routes.length, 9)
   assert.deepEqual(routes.map((item) => item.path).sort(), [
-    '/note-taker/config', '/note-taker/detail', '/note-taker/health', '/note-taker/import', '/note-taker/list',
+    '/note-taker/config', '/note-taker/detail', '/note-taker/health', '/note-taker/import', '/note-taker/label', '/note-taker/list',
     '/note-taker/minutes', '/note-taker/record', '/note-taker/transcribe',
   ])
   assert.ok(routes.every((item) => item.kind === 'exact'))
@@ -199,4 +200,16 @@ test('import：缺 path 被拒，正常路径透传', async () => {
   }))
   assert.equal(okResult.payload.ok, true)
   assert.deepEqual(calls[0], ['importAudio', { fromPath: 'D:\\会议\\a.m4a', label: '导入' }])
+})
+
+test('label：改名透传并校验 id', async () => {
+  const { service, calls } = fakeService()
+  const routes = buildRoutes({ service, logger: loggerSpy() })
+
+  const bad = await invoke(routeByName(routes, 'label'), fakeReq({ method: 'POST', url: '/note-taker/label', body: { id: '../x', label: 'a' } }))
+  assert.equal(bad.payload.ok, false)
+  assert.equal(calls.length, 0)
+
+  await invoke(routeByName(routes, 'label'), fakeReq({ method: 'POST', url: '/note-taker/label', body: { id: 'm-1', label: '周会' } }))
+  assert.deepEqual(calls[0], ['renameMeeting', { meetingId: 'm-1', label: '周会' }])
 })
