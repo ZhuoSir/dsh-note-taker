@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -176,6 +176,7 @@ test('配置来源：页面配置覆盖环境变量，缺省回落', async () =>
   assert.equal(source.get(ENV_KEYS.apiKey), 'sk-file-key')
   assert.equal(source.get(ENV_KEYS.cloudModel), 'file-model')
   assert.equal(source.get(ENV_KEYS.engine), 'cloud')
-  assert.equal(source.get(ENV_KEYS.localModel), 'tiny')
+  assert.equal(source.get(ENV_KEYS.localModel), 'tiny', '环境变量给的要生效')
+  assert.equal(source.get(ENV_KEYS.dataRoot), null, '默认值不冒充显式配置')
   assert.equal(source.get('NOTE_TAKER_ASR_TERMS'), null)
 })
