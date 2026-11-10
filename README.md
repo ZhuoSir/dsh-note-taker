@@ -1,9 +1,9 @@
-# 会记 dsh-note-taker
+﻿# 会记 dsh-note-taker
 
 DSH 插件：**录音 → 本机转写 → 会议纪要**。录音与转写全程在本机；纪要由你在 DSH 里已配置的模型生成。
 
 > 当前进度：spec `specs/20261110_project-skeleton` v1.0.0，**10/11 任务完成**。
-> 录音、转写、纪要三条链路均已实测（录音 16k/单声道、转写 rtf≈0.1、单测 63 全绿）；
+> 录音、转写、纪要三条链路均已实测（录音 16k/单声道、转写 rtf≈0.1、单测 75 全绿）；
 > T-11 端到端演练因本机麦克风无语音输入、且插件未在可用的 DSH profile 中挂载而延期，详见
 > `specs/20261110_project-skeleton/completion.md`。
 > 未落地的东西本文档不会写成「已支持」。
@@ -71,7 +71,7 @@ python py/fetch_model.py --model small --out-dir "%LOCALAPPDATA%\note-taker-mode
 
 | 命令 | 作用 |
 |---|---|
-| `npm run verify` | 结构清单 + 全部单测（当前 20 项结构 + 63 单测） |
+| `npm run verify` | 结构清单 + 全部单测（当前 20 项结构 + 75 单测） |
 | `npm run verify -- --structure-only` | 只做结构检查 |
 | `npm test` | 只跑单测 |
 | `node scripts/smoke-record.mjs 3` | 真录 3 秒并核对 wav 参数（需要麦克风） |

@@ -1,4 +1,4 @@
-# 项目画像
+﻿# 项目画像
 
 > init 生成于 2026-11-10 | 最近刷新: 2026-11-10 | 事实变更时更新（Implement 中发现不符顺手更新）
 
@@ -62,9 +62,9 @@ README.md               目录树、分层职责、安装与调试命令
 **已测**（2026-11-10 实现期实测）：
 
 ```
-npm test  →  tests 63 / pass 63 / fail 0
-（logger 9、errors 7、meetings 8、parse 8、minutes-validate 10、minutes-generate 10、service 11）
-npm run verify  →  结构检查 20 项全部存在 + 单测 63 通过
+npm test  →  tests 75 / pass 75 / fail 0
+（logger 9、errors 7、meetings 8、parse 8、minutes-validate 10、minutes-generate 10、service 11、tools 6、index 6）
+npm run verify  →  结构检查 20 项全部存在 + 单测 75 通过
 ```
 
 既有失败清单：无。
