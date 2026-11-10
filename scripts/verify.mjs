@@ -35,7 +35,10 @@ const REQUIRED = [
   'lib/meetings.js',
   'lib/parse.js',
   'lib/minutes.js',
+  'py/_common.py',
+  'py/record.py',
   'scripts/verify.mjs',
+  'scripts/install-py.mjs',
 ]
 
 function checkStructure() {

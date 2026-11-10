@@ -43,7 +43,7 @@
 
 ## 3. 音频链路
 
-- [ ] T-06 离线安装采集库并接入录音 sidecar
+- [x] T-06 离线安装采集库并接入录音 sidecar
   关联: R-03
   依赖: T-02, T-03
   验证方式: `node scripts/install-py.mjs` 在无网也能复跑（幂等，已装则跳过）；`node scripts/smoke-record.mjs 5` 录 5 秒后，用 `python -c "import av; c=av.open(r'<wav>'); print(c.duration)"` 读出时长 5s±0.5s、采样率 16000、单声道；把设备名改成不存在的设备，返回 `E_DEVICE` 且 `recordings/` 无残留文件
