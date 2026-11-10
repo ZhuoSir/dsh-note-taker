@@ -34,6 +34,7 @@ const REQUIRED = [
   'lib/errors.js',
   'lib/meetings.js',
   'lib/parse.js',
+  'lib/minutes.js',
   'scripts/verify.mjs',
 ]
 
