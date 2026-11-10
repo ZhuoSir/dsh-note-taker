@@ -1,23 +1,23 @@
-﻿> 版本: v1.0.0 | 状态: 已确认 | 更新: 2026-11-10 | 确认人: 陈卓 | 确认日期: 2026-11-10
+﻿> 版本: v1.1.0 | 状态: 已确认 | 更新: 2026-11-10 | 确认人: 陈卓 | 确认日期: 2026-11-10
 
 # 任务清单：add-cloud-asr
 
 ## 1. 配置与纯函数
 
-- [ ] T-01 实现云端配置解析
+- [x] T-01 实现云端配置解析
   关联: R-03, R-04
   依赖: 无
   验证方式: `node --test tests/asr-config.test.js`——缺 `DASHSCOPE_API_KEY` 时返回 `E_DEP` 且 `detail.env` 指出变量名；全量环境变量覆盖后模型/地址/倍速/术语解析正确；术语超过 200 条时截断并返回 warning；配置来源通过注入 `source.get(key)` 对象取值（证明可替换为页面配置）
   日志断言: 缺密钥场景日志出现「密钥缺失」含变量名且不含密钥值；术语截断场景出现 WARN 含原始条数与截断后条数
   验收标准: 五类用例全绿；`config.js` 不直接读 `process.env` 之外的全局，来源可注入
 
-- [ ] T-02 实现服务端事件聚合
+- [x] T-02 实现服务端事件聚合
   关联: R-02, R-07
   依赖: 无
   验证方式: `node --test tests/asr-aggregate.test.js`——覆盖：只取 `sentence_end=true`；`heartbeat=true` 丢弃；中间结果（同 `sentence_id` 多次推送）不重复；毫秒正确转秒（160ms→0.16）；乱序到达按 `begin_time` 排序；空事件流产出空数组；`sentence` 缺字段时不抛错而是跳过并计数
   验收标准: 七类用例全绿；聚合器为纯函数，不读时钟、不发网络
 
-- [ ] T-03 实现 PCM 分帧
+- [x] T-03 实现 PCM 分帧
   关联: R-02
   依赖: 无
   验证方式: `node --test tests/asr-pcm.test.js`——用合成正弦波 wav 断言：输出采样率 16000、单声道、帧长 3200 字节（100ms）；末帧不足时补零且记录真实字节数；输入 48kHz 立体声时重采样与下混正确；损坏文件抛 `E_AUDIO`
@@ -25,14 +25,14 @@
 
 ## 2. 客户端
 
-- [ ] T-04 实现百炼 WebSocket 客户端
+- [x] T-04 实现百炼 WebSocket 客户端 [作废 CR-01 v1.1.0：该工作空间无流式后端]
   关联: R-02, R-05, R-08
   依赖: T-01, T-03
   验证方式: 用 T-05 的假 WebSocket 驱动：断言发送顺序为 `run-task` → （收到 `task-started` 后）音频帧 → `finish-task`；`run-task` 的 `model`/`parameters.format`/`sample_rate` 与配置一致；未收到 `task-started` 就推流时客户端必须等待而不是抢跑；空闲超过阈值触发中止并返回 `E_LLM`；连接错误映射为 `E_LLM`、握手 401 映射为 `E_DEP`
   日志断言: 依次出现「连接建立」（host/耗时）、「task-started」（taskId/model）、「首条最终结果」、「task-finished」（句数/usage.duration/总耗时）；失败路径出现「连接/推流失败」含 code 与服务端 error_code，且**日志中检索不到密钥串**
   验收标准: 协议序列与五类错误路径用例全绿；无真实网络请求
 
-- [ ] T-05 提供假 WebSocket 客户端并补协议单测
+- [x] T-05 提供假 WebSocket 客户端并补协议单测 [作废 CR-01 v1.1.0]
   关联: R-10
   依赖: T-02, T-04
   验证方式: `node --test tests/cloud-asr.test.js`——假客户端可编排服务端事件脚本（started→N 条 result→finished），断言客户端产出与 `aggregate` 结果一致；另覆盖：`task-failed`、无响应超时、连接中途关闭、服务端返回畸形 JSON 四种错误路径
@@ -56,7 +56,7 @@
 
 ## 4. 文档与真实验证
 
-- [ ] T-08 更新 README 与配置说明
+- [x] T-08 更新 README 与配置说明
   关联: R-03, R-05
   依赖: T-01
   验证方式: 人工核对 README 新章节包含：`DASHSCOPE_API_KEY` 配置方式、两个候选模型名、两套域名与 Workspace ID 说明、**「云端按实时速率，47 分钟音频约 47 分钟」的耗时预期**、倍速参数、失败时不会自动回退本地
@@ -88,3 +88,30 @@
 - 每条 R 至少被一个 T 覆盖；无 T 找不到对应 R
 - 依赖只指向更小编号（T-04→T-01/T-03、T-05→T-02/T-04、T-06→T-02/T-04、T-07→T-06、T-08→T-01、T-09→T-06/T-07），无循环
 - 任务数 9，在 3~20 区间；涉及外部调用/网络/落盘的任务（T-01/T-04/T-06/T-07/T-09）均有可执行日志断言
+
+- [x] T-10 实现 HTTP ASR 客户端
+  关联: R-02, R-05 | 依赖: T-01 | CR: CR-01 | 处置: 新增
+  验证方式: `node --test tests/asr-http.test.js` —— 假 fetch 断言请求体（model/messages/input_audio/parameters）、
+  200 解析、401→E_DEP、429/5xx→E_LLM、超时、网络异常、空音频、非 JSON 响应
+  日志断言: 出现「云端识别请求」（model、音频字节、base64 字节，不含 key）与「云端识别完成」（耗时、requestId）
+  验收标准: 10 个用例全绿；真机 1.3s 返回
+
+- [x] T-11 实现长音频切片与合并
+  关联: R-11 | 依赖: T-10 | CR: CR-01 | 处置: 新增
+  验证方式: `node --test tests/asr-chunk.test.js` —— 按秒切片、末片可短、偏移累加、空文本丢弃、重叠去重、乱序排序
+  验收标准: 7 个用例全绿；分片字节总数等于原音频
+
+- [x] T-12 改造聚合器以适配 HTTP 响应
+  关联: R-02, R-07, R-12 | 依赖: T-02 | CR: CR-01 | 处置: 改造
+  验证方式: `node --test tests/asr-aggregate.test.js` —— 顶层 sentence、output.sentences、speakerId、words 标点切句、去回声
+  验收标准: 12 个用例全绿；2 分钟真实音频从 1 段切成 19 段
+
+- [x] T-13 移除 ws 依赖并退役流式客户端
+  关联: R-02 | 依赖: T-10 | CR: CR-01 | 处置: 回退
+  验证方式: `npm ls ws` 无输出；`npm run verify` 全绿；cloud.js 与假 WebSocket 测试已从工作树移除（历史保留）
+  验收标准: 依赖树干净
+
+- [x] T-14 真实音频验证云端识别
+  关联: R-02, R-07, R-11 | 依赖: T-10, T-11 | CR: CR-01 | 处置: 新增（替代原 T-09）
+  验证方式: 真实 m4a 的 2 分钟与全片各跑一次，记录段数/字数/耗时/rtf 与质量对照
+  验收标准: 真实返回成功且被下游解析；全片分片（10 片）跑通

@@ -156,3 +156,17 @@
 - 状态: 退休（已升格为代码默认值：`transcribe.py` DEFAULT_ZH_PROMPT）
 - 复发: ×1
 - 关联: T-07/T-11；残留问题仅剩同音错字（决议→绝议），需靠 initial_prompt 里塞术语缓解
+
+## L-12 云端 ASR 的词表上下文会破坏说话人分离
+
+- 分类: 验证盲区
+- 触发场景: 云端转写同时开启「词表上下文（input_text）」与「说话人分离（speaker_diarization_enabled）」
+- 坑: 带 `input_text` 时 `output.sentences[].speaker_id` 全部是 `-1`（未识别），分人静默失效；
+  去掉 `input_text` 后同一段音频立刻返回 `S0`/`S1`。两次请求都 HTTP 200，没有任何报错。
+- 根因: 未查明（推测模型把上下文文本当成对话轮次，扰乱了说话人聚类）。
+  已确认的是「两者互斥」这一事实，不是猜测。
+- 防再犯规则: 同一请求里叠加多个增强参数时，必须逐项对照验证输出字段而不是只看 HTTP 200；
+  本项目的处置是**分人优先**：开启分人时不再发送词表（`lib/asr/http.js` 有注释与单测锁定）。
+- 状态: active
+- 复发: ×1
+- 关联: `lib/asr/http.js` 的 `if (!diarization && terms...)`；tests/asr-http.test.js 对应用例

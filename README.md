@@ -67,15 +67,64 @@ python py/fetch_model.py --model small --out-dir "%LOCALAPPDATA%\note-taker-mode
 - 镜像可用 `NOTE_TAKER_HF_ENDPOINT` 覆盖（默认 `https://hf-mirror.com`，要直连官方就设成 `https://huggingface.co`）
 - 下载速度实测约 1.4 MB/s，`small` 约六分钟；先用 `tiny` 跑通链路也行
 
+## 云端 ASR（可选）
+
+除本机 faster-whisper 外，还可以用阿里云百炼的**非实时语音识别 HTTP 接口**
+（`qwen-audio-3.0-asr-flash`）。两条路径产出的 `transcripts/<id>.md|json` 完全同构，
+下游解析与纪要生成不区分引擎。
+
+### 配置
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `NOTE_TAKER_ASR_ENGINE` | `local` | 缺省引擎，可设 `cloud` |
+| `DASHSCOPE_API_KEY` | 无 | 必填；缺失时返回 `E_DEP`，**不会静默回退本地** |
+| `NOTE_TAKER_CLOUD_ASR_URL` | DashScope 公共 HTTP 地址 | 换成 `https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation` 即走业务空间专属域名 |
+| `NOTE_TAKER_CLOUD_ASR_MODEL` | `qwen-audio-3.0-asr-flash` | 可换 `qwen-audio-3.1-asr-flash`（支持润色与说话人分离） |
+| `NOTE_TAKER_ASR_TERMS` | 无 | 逗号分隔的领域词表，作为上下文提升专有名词识别 |
+| `NOTE_TAKER_ASR_CHUNK_SECONDS` | `300` | 长音频分片时长，超长会议按此切片串行识别 |
+| `NOTE_TAKER_ASR_DIARIZATION` | 关 | 设 `1` 开启说话人分离（需模型支持，见下） |
+
+### 说话人分离（说话人识别）
+
+- **必须用 `qwen-audio-3.1-asr-flash`**（默认模型已切到它）：传 `speaker_diarization_enabled: true` 后，
+  响应返回 `output.sentences[]`，每句带 `speaker_id`，落盘的 md 变成 `[00:00:12] S0：…`
+- **3.0 不支持**：参数会被静默忽略，`speaker_id` 恒为 `null`
+- **模型列表里可能看不到 3.1**：实测它不在 `GET /compatible-mode/v1/models` 的返回里，但直接请求可用
+- **与词表上下文互斥**：开启分人时不会再发送 `input_text` 词表——实测带着词表请求，`speaker_id` 会全部退化成 `-1`
+  （分人失效）；两者只能选一个，代码里以分人优先
+- **质量预期**：2 分钟双人样本识别出 S0/S1，但短插话（「对」「嗯」）归属不稳定，偶尔同一句被拆到两人；
+  这是当前模型的能力边界，正式纪要建议人工核对发言人
+
+实测（2026-11-10，2 分钟现场录音）：47 段 / 853 字 / 11s / rtf 0.088，S0 7 句、S1 40 句
+
+单次调用也可覆盖：`meeting_transcribe` 的 `engine` 参数（`local` / `cloud`）。
+
+### 实测性能（本机，2026-11-10）
+
+| 样本 | 引擎 | 结果 |
+|---|---|---|
+| 2 分钟现场录音 | local `small` | 15 段 / 26s / 术语大量错字（灰度→歸度、决议→绝议） |
+| 2 分钟现场录音 | cloud | 19 段 / 12s / 术语正确（FDE、智慧食堂、XXX） |
+| **47 分钟现场录音** | cloud（10 片） | **553 段 / 15647 字 / 351s（rtf 0.124）** |
+| 47 分钟现场录音 | local `small` | 903 段 / 8141 字 / 540s（rtf 0.19），术语错误多 |
+
+结论：**云端又快又准**，但会把音频上传到阿里云；本地引擎不联网、可离线，质量取决于模型档位与录音条件。
+
+### 隐私
+
+使用 `engine=cloud` 时音频会上传至阿里云百炼（DashScope）。首次云端调用会在返回值与日志各留一次明确提示；
+本地引擎保持零外发。
+
 ## 常用命令
 
 | 命令 | 作用 |
 |---|---|
-| `npm run verify` | 结构清单 + 全部单测（当前 20 项结构 + 75 单测） |
+| `npm run verify` | 结构清单 + 全部单测（当前 26 项结构 + 127 单测） |
 | `npm run verify -- --structure-only` | 只做结构检查 |
 | `npm test` | 只跑单测 |
 | `node scripts/smoke-record.mjs 3` | 真录 3 秒并核对 wav 参数（需要麦克风） |
-| `node scripts/smoke-transcribe.mjs --audio <wav> tiny` | 拿真实语音跑转写并核对产物 |
+| `node scripts/smoke-transcribe.mjs --audio <wav> tiny` | 拿真实语音跑本地转写并核对产物 |
 | `node scripts/e2e.mjs 5 tiny` | 录音→转写→纪要整链演练（纪要那步用桩模型） |
 
 Windows 控制台注意：脚本输出含中文与符号，执行前建议 `set PYTHONUTF8=1`（PowerShell: `$env:PYTHONUTF8='1'`），

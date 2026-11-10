@@ -96,8 +96,8 @@ test('显式传参与布尔值不被吞掉', () => {
   const { tools, calls } = makeTools()
 
   tools.find((tool) => tool.name === 'meeting_minutes').execute({ meetingId: 'm-9', force: true })
-  tools.find((tool) => tool.name === 'meeting_transcribe').execute({ meetingId: 'm-9', model: 'small' })
+  tools.find((tool) => tool.name === 'meeting_transcribe').execute({ meetingId: 'm-9', model: 'small', engine: 'cloud' })
 
   assert.deepEqual(calls[0], ['minutes', { meetingId: 'm-9', force: true }])
-  assert.deepEqual(calls[1], ['transcribe', { meetingId: 'm-9', model: 'small' }])
+  assert.deepEqual(calls[1], ['transcribe', { meetingId: 'm-9', model: 'small', engine: 'cloud' }])
 })
