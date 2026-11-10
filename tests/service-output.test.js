@@ -208,3 +208,41 @@ test('service.minutes 写进单文件：纪要段更新，转写逐字不变', a
   assert.match(extractMinutes(content), /张三/, '纪要应写进同一文件')
   assert.equal(content.split('## 纪要').length - 1, 1, '只能有一个纪要段')
 })
+
+test('list：文件里已有纪要但状态是 pending → hasMinutes=true 且状态自愈为 done', async () => {
+  const root = tempRoot()
+  const service = createService({
+    config: { root, model: 'tiny', threads: 2 },
+    logger: quietLogger(),
+    llm: { stream: () => (async function* gen() {})() },
+  })
+
+  const { id } = seedMeeting({ service, root })
+  const { mkdirSync, writeFileSync } = await import('node:fs')
+  mkdirSync(join(root, 'minutes'), { recursive: true })
+  writeFileSync(join(root, 'minutes', `${id}.md`), '## 决议\n- 有了\n', 'utf8')
+
+  // 先确认状态是 pending（seed 里就是这么造的）
+  assert.equal(service.store.get(id).status.minutes, 'pending')
+
+  const listed = service.list({ limit: 10 })
+  const row = listed.meetings.find((item) => item.id === id)
+  assert.equal(row.hasMinutes, true, '应按文件判断出有纪要')
+  assert.equal(row.status.minutes, 'done', '状态应被自愈')
+
+  // 自愈后持久化也要生效
+  assert.equal(service.store.get(id).status.minutes, 'done')
+})
+
+test('list：没有纪要文件时 hasMinutes=false', async () => {
+  const root = tempRoot()
+  const service = createService({
+    config: { root, model: 'tiny', threads: 2 },
+    logger: quietLogger(),
+    llm: { stream: () => (async function* gen() {})() },
+  })
+  const { id } = seedMeeting({ service, root })
+
+  const row = service.list({ limit: 10 }).meetings.find((item) => item.id === id)
+  assert.equal(row.hasMinutes, false)
+})
