@@ -21,6 +21,9 @@ from _common import emit, emit_error, ensure_pylibs, log, setup_streams  # noqa:
 MODULE = 'note-taker/transcribe'
 SUPPORTED_MODELS = ('tiny', 'base', 'small', 'medium')
 DEFAULT_HF_ENDPOINT = 'https://hf-mirror.com'
+# Whisper 对中文默认倾向输出繁体（实测 tiny/small 都一样），给一句简体提示可以纠正；
+# 调用方传入 --prompt（参会人、术语）时以调用方为准。
+DEFAULT_ZH_PROMPT = '以下是普通话会议记录，请用简体中文输出。'
 
 
 def apply_hf_endpoint():
@@ -88,13 +91,17 @@ def main():
     except Exception as error:
         emit_error('E_MODEL', '转写模型加载失败（首次使用需要能下载模型）', model=args.model, error=str(error))
 
+    initial_prompt = args.prompt
+    if initial_prompt is None and args.language == 'zh':
+        initial_prompt = DEFAULT_ZH_PROMPT
+
     try:
         segments_iter, info = model.transcribe(
             args.audio,
             language=None if args.language == 'auto' else args.language,
             vad_filter=True,
             vad_parameters={'min_silence_duration_ms': 500},
-            initial_prompt=args.prompt,
+            initial_prompt=initial_prompt,
             beam_size=5,
         )
         segments = [

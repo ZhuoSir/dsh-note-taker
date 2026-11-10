@@ -60,8 +60,12 @@ python py/fetch_model.py --model small --out-dir "%LOCALAPPDATA%\note-taker-mode
 ```
 
 - 档位：`tiny` 75MB / `base` 145MB / `small` 480MB / `medium` 1.5GB（本机可用内存 3 GB 出头，建议 `small`）
+- **中文简体是提示词管出来的，不是模型大小管出来的**：Whisper 默认倾向输出繁体，代码里已内置
+  `以下是普通话会议记录，请用简体中文输出。`（`py/transcribe.py` 的 `DEFAULT_ZH_PROMPT`）。
+  实测加提示后 `tiny`/`small` 都输出简体、术语正确，仅剩同音错字（决议→绝议），
+  正式使用建议在 `--prompt` 里塞参会人姓名与项目术语
 - 镜像可用 `NOTE_TAKER_HF_ENDPOINT` 覆盖（默认 `https://hf-mirror.com`，要直连官方就设成 `https://huggingface.co`）
-- 下载慢是常态（实测 ~90 KB/s），`small` 大约要一个多小时，可以先拿 `tiny` 跑通链路
+- 下载速度实测约 1.4 MB/s，`small` 约六分钟；先用 `tiny` 跑通链路也行
 
 ## 常用命令
 
