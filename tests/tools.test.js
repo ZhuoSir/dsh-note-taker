@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict'
+import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -43,11 +43,11 @@ function makeTools() {
   return { tools: buildTools({ service }), calls }
 }
 
-test('注册且只注册六个工具，名字精确匹配', () => {
+test('注册且只注册七个工具，名字精确匹配', () => {
   const { tools } = makeTools()
   assert.deepEqual(
     tools.map((tool) => tool.name).sort(),
-    ['meeting_list', 'meeting_minutes', 'meeting_record_start', 'meeting_record_stop', 'meeting_status', 'meeting_transcribe'],
+    ['meeting_import', 'meeting_list', 'meeting_minutes', 'meeting_record_start', 'meeting_record_stop', 'meeting_status', 'meeting_transcribe'],
   )
 })
 
@@ -102,4 +102,27 @@ test('显式传参与布尔值不被吞掉', () => {
 
   assert.deepEqual(calls[0], ['minutes', { meetingId: 'm-9', force: true }])
   assert.deepEqual(calls[1], ['transcribe', { meetingId: 'm-9', model: 'small', engine: 'cloud' }])
+})
+
+test('meeting_import 工具：契约完整、超时 45 分钟、参数透传（含默认转写）', async () => {
+  const calls = []
+  const tools = buildTools({
+    service: {
+      importAudio: (args) => { calls.push(args); return { ok: true, meetingId: 'm-1' } },
+    },
+  })
+  const tool = tools.find((item) => item.name === 'meeting_import')
+
+  assert.ok(tool, '工具必须存在')
+  assert.equal(tool.output.type, 'text', '旧宿主需要 type')
+  assert.equal(typeof tool.output.render, 'function', '新宿主需要 render')
+  assert.equal(tool.timeoutMs, 45 * 60 * 1000, '长音频转写需要更长超时')
+  assert.match(tool.description, /outputFile/)
+  assert.match(tool.description, /## 纪要/)
+
+  await tool.execute({ path: 'D:/a.m4a' })
+  assert.deepEqual(calls[0], { fromPath: 'D:/a.m4a', label: '', transcribe: true }, '缺省应自动转写')
+
+  await tool.execute({ path: 'D:/b.m4a', label: '周会', transcribe: false })
+  assert.deepEqual(calls[1], { fromPath: 'D:/b.m4a', label: '周会', transcribe: false })
 })
