@@ -80,3 +80,18 @@ test('插槽注册失败时不把异常抛给宿主', () => {
     })
   })
 })
+
+test('apply 会触发宿主能力探测（否则面板永远显示「尚未探测」）', () => {
+  const entry = loadBundle()
+  const mod = entry.factory(fakeRequire)
+
+  let injected = []
+  let probes = 0
+  mod.apply({
+    slots: { inject: () => () => {}, register: (definition) => definition },
+    inject: (deps, callback) => { injected = deps; probes += 1; void callback },
+  })
+
+  assert.ok(injected.includes('conversation'), '必须尝试注入 conversation')
+  assert.equal(probes, 1)
+})
