@@ -88,6 +88,8 @@
 - 根因: Windows 控制台默认 GBK，Python stdout 编码与实际输出字符不匹配。
 - 防再犯规则: 跑带中文/符号输出的 Python 脚本前先设 `PYTHONUTF8=1`
   （或 `PYTHONIOENCODING=utf-8`）；判定表格闸以输出里的「✓ 全绿」为准，不单凭退出码下结论。
+  多个文件要**逐个传参**，不要拼成 `a.md,b.md` 一个串——脚本按单一路径读，拼串会报
+  `No such file or directory` 并被误当成表格缺陷（2026-11-10 踩过一次）。
 - 状态: active
-- 复发: ×1
-- 关联: bryanchen-spec 铁律 8（表格闸）；2026-11-10 init 时踩到
+- 复发: ×2
+- 关联: bryanchen-spec 铁律 8（表格闸）；2026-11-10 init 与 project-skeleton 确认① 各踩一次
