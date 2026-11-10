@@ -142,3 +142,51 @@ test('宿主没有注入能力时不抛异常，插件仍启动', () => {
   })
   assert.match(out, /__OK__\{"ok":true\}/)
 })
+
+test('workspace 探针：能注入时暴露可用并可按 sessionId 解析目录', () => {
+  const dataRoot = freshDataRoot()
+  const code = [
+    "import('./lib/index.js')",
+    '.then(async (m) => {',
+    '  const fakeWorkspace = { list: () => [{ id: "w1", path: "D:/work/demo", sessionIds: ["sess-1"] }] }',
+    '  const ctx = { tools: { register() {} }, llm: {}, inject(deps, cb) { cb({ workspace: fakeWorkspace }) } }',
+    '  const result = m.apply(ctx)',
+    '  const caps = await result.service.capabilities()',
+    '  console.log("__WS__" + JSON.stringify({ workspace: caps.workspace, hit: result.config.resolveWorkspaceDir("sess-1"), miss: result.config.resolveWorkspaceDir("nope") }))',
+    '})',
+  ].join('\n')
+
+  const out = execFileSync(process.execPath, ['-e', code], {
+    cwd: ROOT, encoding: 'utf8',
+    env: { ...process.env, NOTE_TAKER_DATA: dataRoot, PYTHONUTF8: '1' },
+  })
+  const line = out.split('\n').find((item) => item.startsWith('__WS__'))
+  const parsed = JSON.parse(line.replace('__WS__', ''))
+
+  assert.equal(parsed.workspace.available, true)
+  assert.equal(parsed.workspace.resolver, true)
+  assert.equal(parsed.hit, 'D:/work/demo', '应按 sessionId 命中工作目录')
+  assert.equal(parsed.miss, null, '未命中的会话返回 null（走回落）')
+})
+
+test('workspace 不可用时探针标记不可用，解析返回 null', () => {
+  const dataRoot = freshDataRoot()
+  const code = [
+    "import('./lib/index.js')",
+    '.then(async (m) => {',
+    '  const result = m.apply({ tools: { register() {} }, llm: {}, inject(deps, cb) { cb({}) } })',
+    '  const caps = await result.service.capabilities()',
+    '  console.log("__WS__" + JSON.stringify({ workspace: caps.workspace, hit: result.config.resolveWorkspaceDir("sess-1") }))',
+    '})',
+  ].join('\n')
+
+  const out = execFileSync(process.execPath, ['-e', code], {
+    cwd: ROOT, encoding: 'utf8',
+    env: { ...process.env, NOTE_TAKER_DATA: dataRoot, PYTHONUTF8: '1' },
+  })
+  const line = out.split('\n').find((item) => item.startsWith('__WS__'))
+  const parsed = JSON.parse(line.replace('__WS__', ''))
+
+  assert.equal(parsed.workspace.available, false)
+  assert.equal(parsed.hit, null)
+})
