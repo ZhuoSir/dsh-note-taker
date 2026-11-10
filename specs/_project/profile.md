@@ -59,9 +59,18 @@ README.md               目录树、分层职责、安装与调试命令
 
 ## 测试基线
 
-**未测**（init 时用户选择跳过。原因：仓库内无测试文件、无测试命令；代码在外部目录且无版本控制）。
+**已测**（2026-11-10 实现期实测）：
 
-既有失败清单：暂无（无测试可列）。首次建立测试后用「补测基线」重跑本节。
+```
+npm test  →  tests 63 / pass 63 / fail 0
+（logger 9、errors 7、meetings 8、parse 8、minutes-validate 10、minutes-generate 10、service 11）
+npm run verify  →  结构检查 20 项全部存在 + 单测 63 通过
+```
+
+既有失败清单：无。
+
+手工冒烟（不在 `npm test` 里，需要真实设备/模型）：`scripts/smoke-record.mjs`、
+`scripts/smoke-transcribe.mjs`、`scripts/e2e.mjs`。
 
 ## 已知技术债
 
