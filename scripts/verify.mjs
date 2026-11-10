@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * 会记（dsh-note-taker）仓库校验入口。
  *
@@ -40,6 +40,10 @@ const REQUIRED = [
   'lib/jobs.js',
   'lib/service.js',
   'lib/tools.js',
+  'lib/asr/config.js',
+  'lib/asr/aggregate.js',
+  'lib/asr/pcm.js',
+  'py/decode_pcm.py',
   'py/_common.py',
   'py/record.py',
   'py/transcribe.py',

@@ -17,7 +17,7 @@
   验证方式: `node --test tests/asr-aggregate.test.js`——覆盖：只取 `sentence_end=true`；`heartbeat=true` 丢弃；中间结果（同 `sentence_id` 多次推送）不重复；毫秒正确转秒（160ms→0.16）；乱序到达按 `begin_time` 排序；空事件流产出空数组；`sentence` 缺字段时不抛错而是跳过并计数
   验收标准: 七类用例全绿；聚合器为纯函数，不读时钟、不发网络
 
-- [ ] T-03 实现 PCM 分帧
+- [x] T-03 实现 PCM 分帧
   关联: R-02
   依赖: 无
   验证方式: `node --test tests/asr-pcm.test.js`——用合成正弦波 wav 断言：输出采样率 16000、单声道、帧长 3200 字节（100ms）；末帧不足时补零且记录真实字节数；输入 48kHz 立体声时重采样与下混正确；损坏文件抛 `E_AUDIO`
