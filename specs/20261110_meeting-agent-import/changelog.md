@@ -6,3 +6,4 @@
 - 初始化：requirements 草稿（R-01~R-07）
 - 来源：用户提出「会话里上传/引用本地文件 → 让 agent 生成纪要」；纪要本版由 agent 读写文件，插件生成纪要留到下一版
 - **确认①**（2026-11-10）确认人: 陈卓 —— requirements.md 转「已确认」；transcribe 默认开启未提出异议
+- **Phase 2 方案**：坑核对 2 条相交；无扩展名解码已探针验证；新增 meeting_import 工具（timeoutMs 45min）+ outputFile 绝对路径；5 个决策；5 个共享面身份；6 条日志点
