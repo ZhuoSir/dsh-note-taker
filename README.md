@@ -48,6 +48,19 @@ node scripts/install-py.mjs
 该脚本下载 wheel 并解包到 `pylibs/`，再用 `PYTHONPATH` 注入，不做 pip 安装。
 README 与代码里都不应出现 `pip install` 作为安装路径。
 
+### 转写模型（首次必须做一次）
+
+转写模型不随仓库分发。HF 直连在国内常连不上（lessons L-08），仓库自带的下载脚本走镜像、
+按文件落到本地目录，转写时优先读本地目录：
+
+```
+python py/fetch_model.py --model small --out-dir "%LOCALAPPDATA%\note-taker-models"
+```
+
+- 档位：`tiny` 75MB / `base` 145MB / `small` 480MB / `medium` 1.5GB（本机可用内存 3 GB 出头，建议 `small`）
+- 镜像可用 `NOTE_TAKER_HF_ENDPOINT` 覆盖（默认 `https://hf-mirror.com`，要直连官方就设成 `https://huggingface.co`）
+- 下载慢是常态（实测 ~90 KB/s），`small` 大约要一个多小时，可以先拿 `tiny` 跑通链路
+
 ## 常用命令
 
 | 命令 | 作用 |
@@ -67,7 +80,9 @@ Windows 控制台注意：脚本输出含中文与符号，执行前建议 `set 
 meetings.json          会议索引
 recordings/<id>.wav    录音（16kHz 单声道）
 transcripts/<id>.md    转录
+transcripts/<id>.json  分段明细
 minutes/<id>.md        纪要
+models/                本地转写模型（faster-whisper-<档位>/）
 ```
 
 **覆盖方式**：设置环境变量 `NOTE_TAKER_DATA` 指向任意可写目录。开发期务必这么做——
@@ -78,7 +93,10 @@ minutes/<id>.md        纪要
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `NOTE_TAKER_MODEL` | `small` | faster-whisper 模型档位 |
+| `NOTE_TAKER_MODEL_DIR` | `%LOCALAPPDATA%\note-taker-models` | 本地模型目录（smoke 脚本用） |
 | `NOTE_TAKER_THREADS` | `6` | 转写线程数（本机 4P+8E，别用满） |
+| `NOTE_TAKER_HF_ENDPOINT` | `https://hf-mirror.com` | 模型下载镜像 |
+| `NOTE_TAKER_LLM_PROVIDER` / `NOTE_TAKER_LLM_MODEL` | 空（用宿主当前配置） | 生成纪要时指定的模型路由 |
 
 ## 隐私边界
 

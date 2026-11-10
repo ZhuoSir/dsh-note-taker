@@ -50,7 +50,7 @@
   日志断言: 正常路径依次出现「录音开始」（device/sampleRate/path）与「录音结束」（duration/bytes/exitCode）；异常路径出现「录音失败」含 code 与 stderr 末尾 500 字——对应 plan 日志点第 4、5、6 行
   验收标准: 离线安装可复跑；5 秒录音合规；无设备时 `E_DEVICE` 且零残留
 
-- [ ] T-07 接入转写 sidecar
+- [x] T-07 接入转写 sidecar
   关联: R-04
   依赖: T-02
   验证方式: 用 T-06 的 wav 跑 `node scripts/smoke-transcribe.mjs`，产出 `transcripts/<id>.md` 与 `.json`，json 的 segments 数 > 0 且 start 单调递增；把 wav 头部截断后复跑，返回 `E_AUDIO` 且既有 transcript 文件内容不变（比对 sha256）

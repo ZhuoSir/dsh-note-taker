@@ -42,6 +42,8 @@ const REQUIRED = [
   'lib/tools.js',
   'py/_common.py',
   'py/record.py',
+  'py/transcribe.py',
+  'py/fetch_model.py',
   'scripts/verify.mjs',
   'scripts/install-py.mjs',
 ]
