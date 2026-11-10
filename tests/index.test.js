@@ -99,7 +99,7 @@ test('数据根不可写时 apply 返回失败但不抛异常', () => {
   assert.match(output, /数据根不可写/)
 })
 
-test('宿主有 webServer 时通过可选注入注册六条路由', () => {
+test('宿主有 webServer 时通过可选注入注册七条路由', () => {
   const dataRoot = freshDataRoot()
   const code = [
     "import('./lib/index.js')",
@@ -120,8 +120,9 @@ test('宿主有 webServer 时通过可选注入注册六条路由', () => {
   const result = JSON.parse(line.replace('__ROUTES__', ''))
 
   assert.equal(result.ok, true)
-  assert.equal(result.routes.length, 6)
+  assert.equal(result.routes.length, 7)
   assert.ok(result.routes.includes('/note-taker/health'))
+  assert.ok(result.routes.includes('/note-taker/import'))
 })
 
 test('宿主没有注入能力时不抛异常，插件仍启动', () => {

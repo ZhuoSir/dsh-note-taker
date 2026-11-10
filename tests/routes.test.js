@@ -19,6 +19,7 @@ function fakeService(overrides = {}) {
     minutes: (args) => { calls.push(['minutes', args]); return { ok: true, minutesPath: '/x.md' } },
     recordStart: (args) => { calls.push(['recordStart', args]); return { ok: true, meetingId: 'm-1' } },
     recordStop: () => { calls.push(['recordStop']); return { ok: true, durationSec: 5 } },
+    importAudio: (args) => { calls.push(['importAudio', args]); return { ok: true, meetingId: 'm-imp', durationSec: 60 } },
   }
   return { service: { ...base, ...overrides }, calls }
 }
@@ -48,13 +49,13 @@ function routeByName(routes, name) {
   return routes.find((item) => item.path === `/note-taker/${name}`)
 }
 
-test('注册六条 exact 路由', () => {
+test('注册七条 exact 路由', () => {
   const { service } = fakeService()
   const routes = buildRoutes({ service, logger: loggerSpy() })
 
-  assert.equal(routes.length, 6)
+  assert.equal(routes.length, 7)
   assert.deepEqual(routes.map((item) => item.path).sort(), [
-    '/note-taker/detail', '/note-taker/health', '/note-taker/list',
+    '/note-taker/detail', '/note-taker/health', '/note-taker/import', '/note-taker/list',
     '/note-taker/minutes', '/note-taker/record', '/note-taker/transcribe',
   ])
   assert.ok(routes.every((item) => item.kind === 'exact'))
@@ -180,4 +181,20 @@ test('响应头是 JSON，body 是信封', async () => {
 
   assert.match(res.headers['content-type'], /application\/json/)
   assert.equal(typeof JSON.parse(res.body).ok, 'boolean')
+})
+
+test('import：缺 path 被拒，正常路径透传', async () => {
+  const { service, calls } = fakeService()
+  const routes = buildRoutes({ service, logger: loggerSpy() })
+
+  const bad = await invoke(routeByName(routes, 'import'), fakeReq({ method: 'POST', url: '/note-taker/import', body: {} }))
+  assert.equal(bad.payload.ok, false)
+  assert.equal(bad.payload.detail.field, 'path')
+  assert.equal(calls.length, 0)
+
+  const okResult = await invoke(routeByName(routes, 'import'), fakeReq({
+    method: 'POST', url: '/note-taker/import', body: { path: 'D:\\会议\\a.m4a', label: '导入' },
+  }))
+  assert.equal(okResult.payload.ok, true)
+  assert.deepEqual(calls[0], ['importAudio', { fromPath: 'D:\\会议\\a.m4a', label: '导入' }])
 })
