@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 设置区「会记」页：配置 + 历史纪要（R-01~R-04）。
  *
  * 纪律：
@@ -17,14 +17,15 @@ import { theme } from './theme.js'
 const MODELS = ['tiny', 'base', 'small', 'medium']
 
 const styles = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 2px', maxWidth: 860, color: theme.text, fontFamily: theme.font },
+  wrap: { display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 2px', width: '100%', maxWidth: 860, minWidth: 0, boxSizing: 'border-box', color: theme.text, fontFamily: theme.font },
   card: { border: `1px solid ${theme.border}`, borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 12, background: theme.bg, color: theme.text },
-  row: { display: 'grid', gridTemplateColumns: '150px 1fr', gap: '8px 12px', alignItems: 'center', fontSize: 13 },
+  // minmax(0, 1fr) 是关键：默认 1fr 会被长内容（比如整串 Key）撑破，导致整页横向溢出
+  row: { display: 'grid', gridTemplateColumns: '130px minmax(0, 1fr)', gap: '8px 12px', alignItems: 'center', fontSize: 13, minWidth: 0 },
   label: { color: theme.textSecondary, fontSize: 12 },
   input: { padding: '6px 10px', borderRadius: 8, border: `1px solid ${theme.border}`, background: 'transparent', color: theme.text, fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' },
   select: { padding: '6px 10px', borderRadius: 8, border: `1px solid ${theme.border}`, background: 'transparent', color: theme.text, fontSize: 13, fontFamily: 'inherit' },
-  hint: { fontSize: 11, color: theme.textMuted, gridColumn: '2 / 3' },
-  fieldError: { fontSize: 11, color: theme.danger, gridColumn: '2 / 3' },
+  hint: { fontSize: 11, color: theme.textMuted, gridColumn: '2 / 3', minWidth: 0, wordBreak: 'break-word', lineHeight: 1.5 },
+  fieldError: { fontSize: 11, color: theme.danger, gridColumn: '2 / 3', minWidth: 0, wordBreak: 'break-word' },
   bar: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   btn: { padding: '6px 14px', borderRadius: 8, border: `1px solid ${theme.border}`, background: 'transparent', color: theme.text, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' },
   btnPrimary: { padding: '6px 14px', borderRadius: 8, border: `1px solid ${theme.accentBorder}`, background: theme.accentBg, color: theme.text, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' },
@@ -210,8 +211,8 @@ export function SettingsPage() {
           error: fieldErrors['cloud.apiKey'],
         },
           createElement('input', {
-            type: 'text', style: styles.input, value: form.cloud.apiKey ?? '',
-            placeholder: 'sk-…',
+            type: 'text', style: { ...styles.input, fontFamily: theme.mono }, value: form.cloud.apiKey ?? '',
+            placeholder: 'sk-…', spellCheck: false, autoComplete: 'off',
             onChange: (event) => update('cloud', 'apiKey', event.target.value),
           }),
         ),
@@ -233,7 +234,7 @@ export function SettingsPage() {
       createElement('div', { style: styles.row },
         createElement(Field, {
           label: '目录',
-          hint: '录音、转写、纪要都存这里；**修改后需重启宿主生效**',
+          hint: '录音、转写、纪要都存这里；修改后需重启宿主生效',
           error: fieldErrors.dataRoot,
         },
           createElement('input', {
