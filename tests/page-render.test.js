@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -8,9 +8,8 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const BUNDLE = join(ROOT, 'lib', 'client.js')
 
 /**
- * 假 React：够组件函数跑完一次渲染即可。
- * stateOverrides 按 useState 的调用序号注入初值——用来模拟「列表里已经有会议」，
- * 这正是「原始对象 vs 派生视图混用」那类崩溃的现场。
+ * 假 React：够组件函数跑完一次渲染。
+ * stateOverrides 按 useState 的调用序号注入初值——用来模拟「配置已加载」「有历史纪要」等现场。
  */
 function makeReact(stateOverrides = {}) {
   let index = 0
@@ -31,39 +30,35 @@ function makeReact(stateOverrides = {}) {
   }
 }
 
-/** 从产物里取出注册到某个插槽的组件 */
 function loadComponent(slotName, react) {
   const code = readFileSync(BUNDLE, 'utf8')
   let entry = null
   new Function('window', code)({ __ModuleLoader__: { load: (value) => { entry = value } } })
   assert.ok(entry, '产物必须注册到 __ModuleLoader__')
 
-  const module = entry.factory((id) => {
-    if (id === 'react') return react
-    if (id === 'react-dom') return {}
-    return {}
+  const module = entry.factory((id) => (id === 'react' ? react : {}))
+  const registered = []
+  module.apply({
+    slots: {
+      register: (definition, component) => { registered.push({ definition, component }); return definition },
+      inject: (name, factory) => {
+        const produced = factory(() => {})
+        if (produced && typeof produced[Symbol.iterator] === 'function') for (const item of produced) void item
+        return () => {}
+      },
+    },
+    inject: () => {},
   })
 
-  const registered = []
-  const slots = {
-    register: (definition, component) => {
-      registered.push({ definition, component })
-      return { definition, component }
-    },
-    inject: (name, factory) => {
-      const produced = factory(() => {})
-      if (produced && typeof produced[Symbol.iterator] === 'function') {
-        // 生成器形态：yield 出来的是 register 的返回值
-        for (const item of produced) void item
-      }
-      return () => {}
-    },
-  }
-
-  module.apply({ slots })
   const hit = registered.find((item) => item.definition?.name === slotName)
   assert.ok(hit, `未注册到插槽 ${slotName}`)
   return hit.component
+}
+
+const CONFIG = {
+  asr: { engine: 'cloud', localModel: 'small', chunkSeconds: 300 },
+  cloud: { apiKey: 'sk-…cdef', endpoint: 'https://example.com/v1/generation', model: 'qwen-audio-3.1-asr-flash' },
+  dataRoot: 'D:/data',
 }
 
 const RAW_MEETING = {
@@ -72,56 +67,76 @@ const RAW_MEETING = {
   startedAt: '2026-11-10T14:34:10+08:00',
   durationSec: 2826,
   engine: 'cloud',
-  // 注意：原始对象是 status.record，不是 record（派生视图才有）
-  status: { record: 'done', transcribe: 'done', minutes: 'pending' },
+  status: { record: 'done', transcribe: 'done', minutes: 'done' },
   stats: { segments: 551, chars: 15613 },
   audio: { path: 'D:/data/recordings/a.m4a' },
   errors: {},
 }
 
-test('会记页面：列表非空时不崩（原始对象/派生视图混用回归）', () => {
-  const react = makeReact({ 0: [RAW_MEETING] })
-  const MeetingPage = loadComponent('settings.section', react)
+// SettingsPage 的 useState 顺序：
+// 0=form 1=sources 2=fieldErrors 3=error 4=notice 5=saving 6=meetings 7=openedId 8=minutesText 9=showAll
 
-  react.reset()
-  const tree = MeetingPage()
-  assert.ok(tree, '组件应返回渲染树')
-  assert.equal(tree.type, 'div')
-})
+function renderText(Page, react) {
+  react.reset() // 每次渲染前重置 hook 序号，否则第二次调用拿不到注入的初值
+  return JSON.stringify(Page(), (key, value) => (typeof value === 'function' ? '[fn]' : value))
+}
 
-test('会记页面：有进行中任务时轮询分支不崩', () => {
-  const running = { ...RAW_MEETING, status: { record: 'done', transcribe: 'running', minutes: 'pending' } }
-  const react = makeReact({ 0: [running] })
-  const MeetingPage = loadComponent('settings.section', react)
-
-  react.reset()
-  assert.doesNotThrow(() => MeetingPage())
-})
-
-test('会记页面：录音中时计时分支不崩', () => {
-  const recording = { ...RAW_MEETING, status: { record: 'running', transcribe: 'pending', minutes: 'pending' } }
-  const react = makeReact({ 0: [recording] })
-  const MeetingPage = loadComponent('settings.section', react)
-
-  react.reset()
-  assert.doesNotThrow(() => MeetingPage())
-})
-
-test('快捷面板：列表非空时不崩', () => {
-  const react = makeReact({ 1: [RAW_MEETING] })
-  const QuickPanel = loadComponent('conversation.input.right', react)
-
-  react.reset()
-  assert.doesNotThrow(() => QuickPanel())
-})
-
-test('空列表：两个组件都能渲染空态', () => {
+test('配置未加载时显示占位，不崩', () => {
   const react = makeReact()
-
-  const MeetingPage = loadComponent('settings.section', react)
+  const Page = loadComponent('settings.section', react)
   react.reset()
-  assert.doesNotThrow(() => MeetingPage())
+  assert.doesNotThrow(() => Page())
+})
 
+test('配置加载后渲染表单：引擎单选、模型下拉、Key 掩码都在', () => {
+  const react = makeReact({ 0: CONFIG })
+  const Page = loadComponent('settings.section', react)
+  react.reset()
+
+  const flat = renderText(Page, react)
+  assert.match(flat, /默认引擎/)
+  assert.match(flat, /faster-whisper/)
+  assert.match(flat, /qwen-audio-3\.1-asr-flash/)
+  assert.match(flat, /sk-…cdef/, 'Key 应以掩码回显')
+  assert.match(flat, /保存配置/)
+})
+
+test('有历史纪要时列表渲染，原始对象不崩（派生视图回归）', () => {
+  const react = makeReact({ 0: CONFIG, 6: [RAW_MEETING] })
+  const Page = loadComponent('settings.section', react)
+  react.reset()
+
+  assert.doesNotThrow(() => Page())
+  const flat = renderText(Page, react)
+  assert.match(flat, /历史纪要（1）/)
+  assert.match(flat, /云端 E2E/)
+})
+
+test('没有纪要的会议不出现在列表里', () => {
+  const pending = { ...RAW_MEETING, status: { ...RAW_MEETING.status, minutes: 'pending' } }
+  const react = makeReact({ 0: CONFIG, 6: [pending] })
+  const Page = loadComponent('settings.section', react)
+  react.reset()
+
+  const flat = renderText(Page, react)
+  assert.match(flat, /历史纪要（0）/)
+  assert.match(flat, /还没有纪要/)
+})
+
+test('字段错误按位置渲染，不抛异常', () => {
+  const react = makeReact({
+    0: CONFIG,
+    2: { 'asr.chunkSeconds': '分片秒数必须是 10–3600 的整数' },
+  })
+  const Page = loadComponent('settings.section', react)
+  react.reset()
+
+  assert.doesNotThrow(() => Page())
+  assert.match(renderText(Page, react), /10–3600/)
+})
+
+test('快捷面板：空数据也能渲染', () => {
+  const react = makeReact()
   const QuickPanel = loadComponent('conversation.input.right', react)
   react.reset()
   assert.doesNotThrow(() => QuickPanel())

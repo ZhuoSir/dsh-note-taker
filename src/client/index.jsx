@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 会记客户端入口。
  *
  * 两个插槽：
@@ -8,7 +8,7 @@
  * apply 里不能抛错——抛了会连带 web 壳启动失败。
  */
 
-import { MeetingPage } from './MeetingPage.jsx'
+import { SettingsPage } from './SettingsPage.jsx'
 import { QuickPanel } from './QuickPanel.jsx'
 import { probeHost } from './host.js'
 
@@ -26,7 +26,7 @@ export function apply(ctx) {
   try {
     ctx.slots.inject('settings.section', () => ctx.slots.register(
       { name: 'settings.section', id: 'meeting-page', order: 120, label: '会记' },
-      MeetingPage,
+      SettingsPage,
     ))
   } catch (error) {
     console.warn('[note-taker] 注册 settings.section 失败', error)

@@ -47,7 +47,7 @@ const REQUIRED = [
   'src/client/index.jsx',
   'src/client/logic.js',
   'src/client/api.js',
-  'src/client/MeetingPage.jsx',
+  'src/client/SettingsPage.jsx',
   'src/client/QuickPanel.jsx',
   'src/client/theme.js',
   'src/client/host.js',

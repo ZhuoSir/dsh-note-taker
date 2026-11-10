@@ -93,6 +93,8 @@ export function createApi({ baseUrl = '', fetchImpl = globalThis.fetch, timeoutM
     list: ({ limit } = {}) => request('/list', { query: { limit } }),
     detail: ({ id }) => request('/detail', { query: { id } }),
     health: () => request('/health'),
+    getConfig: () => request('/config'),
+    saveConfig: (patch) => request('/config', { method: 'POST', body: patch }),
     transcribe: ({ id, engine } = {}) => longAction('/transcribe', { id, engine }, { engine }),
     minutes: ({ id, force } = {}) => request('/minutes', { method: 'POST', body: { id, force } }),
     record: ({ action, label } = {}) => request('/record', { method: 'POST', body: { action, label } }),

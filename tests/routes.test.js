@@ -19,6 +19,8 @@ function fakeService(overrides = {}) {
     minutes: (args) => { calls.push(['minutes', args]); return { ok: true, minutesPath: '/x.md' } },
     recordStart: (args) => { calls.push(['recordStart', args]); return { ok: true, meetingId: 'm-1' } },
     recordStop: () => { calls.push(['recordStop']); return { ok: true, durationSec: 5 } },
+    readConfig: () => { calls.push(['readConfig']); return { ok: true, config: {} } },
+    saveConfig: (args) => { calls.push(['saveConfig', args]); return { ok: true, saved: [] } },
     importAudio: (args) => { calls.push(['importAudio', args]); return { ok: true, meetingId: 'm-imp', durationSec: 60 } },
   }
   return { service: { ...base, ...overrides }, calls }
@@ -49,13 +51,13 @@ function routeByName(routes, name) {
   return routes.find((item) => item.path === `/note-taker/${name}`)
 }
 
-test('注册七条 exact 路由', () => {
+test('注册八条 exact 路由', () => {
   const { service } = fakeService()
   const routes = buildRoutes({ service, logger: loggerSpy() })
 
-  assert.equal(routes.length, 7)
+  assert.equal(routes.length, 8)
   assert.deepEqual(routes.map((item) => item.path).sort(), [
-    '/note-taker/detail', '/note-taker/health', '/note-taker/import', '/note-taker/list',
+    '/note-taker/config', '/note-taker/detail', '/note-taker/health', '/note-taker/import', '/note-taker/list',
     '/note-taker/minutes', '/note-taker/record', '/note-taker/transcribe',
   ])
   assert.ok(routes.every((item) => item.kind === 'exact'))
