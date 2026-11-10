@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 会记（dsh-note-taker）仓库校验入口。
  *
@@ -10,7 +10,8 @@
  * 单测文件显式枚举后传给 `node --test`：直接把目录交给 node 会被当成测试文件路径。
  */
 
-import { existsSync, readdirSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -75,6 +76,38 @@ function checkStructure() {
   return true
 }
 
+/**
+ * 构建可重复校验（R-08）：重建一次客户端产物，与提交的产物比对。
+ * 不一致说明「提交的产物不是从当前源码构建出来的」——必须失败。
+ */
+function checkClientRebuild() {
+  const outfile = join(ROOT, 'lib', 'client.js')
+  if (!existsSync(outfile)) {
+    console.error('构建校验: lib/client.js 不存在，请先 npm run build:client')
+    return false
+  }
+
+  const hashOf = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
+  const before = hashOf(outfile)
+
+  const built = spawnSync(process.execPath, [join(ROOT, 'scripts', 'build-client.mjs')], {
+    cwd: ROOT, encoding: 'utf8', env: { ...process.env, PYTHONUTF8: '1' },
+  })
+  if (built.status !== 0) {
+    console.error(`构建校验: 构建失败\n${(built.stderr ?? '').slice(0, 400)}`)
+    return false
+  }
+
+  const after = hashOf(outfile)
+  if (before !== after) {
+    console.error('构建校验: 产物与源码不一致（提交的 lib/client.js 不是从当前源码构建的）')
+    console.error(`  提交版 ${before.slice(0, 12)} ≠ 重建版 ${after.slice(0, 12)}`)
+    return false
+  }
+
+  console.log(`构建校验: lib/client.js 可重复构建（${after.slice(0, 12)}）`)
+  return true
+}
 function runTests() {
   const testsDir = join(ROOT, 'tests')
   if (!existsSync(testsDir)) {
@@ -98,4 +131,7 @@ if (structureOnly) {
   console.log('（--structure-only：跳过单测）')
   process.exit(0)
 }
-process.exit(runTests() ? 0 : 1)
+const structureOk = checkStructure()
+const buildOk = testsOnly ? true : checkClientRebuild()
+const testsOk = testsOnly || !structureOnly ? runTests() : true
+process.exit(structureOk && buildOk && testsOk ? 0 : 1)
