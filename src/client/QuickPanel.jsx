@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 会话输入框旁的会记快捷面板（conversation.input.right 插槽）。
  *
  * 只做三件事：录音起停（带计时）、看最近 3 场状态、提示去设置区看全部（R-05）。
@@ -10,6 +10,7 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import { createApi } from './api.js'
 import { capabilitiesFrom, errorText, formatDuration, toListRows } from './logic.js'
 import { theme } from './theme.js'
+import { hostStatusText } from './host.js'
 
 const POLL_MS = 2000
 
@@ -128,6 +129,7 @@ export function QuickPanel() {
           )),
 
       createElement('div', { style: styles.muted }, '全部会议在 设置 → 会记'),
+      createElement('div', { style: { ...styles.muted, fontSize: 11 } }, hostStatusText()),
     ) : null,
   )
 }
