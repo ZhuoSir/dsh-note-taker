@@ -1,0 +1,4 @@
+# 占位：specs/ 根目录
+
+每个需求在此新建 `specs/<YYYYMMDD>_<功能名>/`，内含 requirements / plan / tasks / changelog 四件套。
+项目级台账在 `specs/_project/`。

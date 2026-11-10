@@ -1,0 +1,18 @@
+# .specrc.yml —— bryanchen-spec 规范源路由表（团队共享，进 git）
+# 源取值: global（skill 内置 standards/）| file:<相对路径> | skill:<skill名> | none
+# 状态: 待确认（spec init 2026-11-10 草稿）——用户逐行确认后删除本行状态标记
+#
+# 本项目形态: DSH 插件（Node.js ESM，Cordis 注册工具）+ Python sidecar（录音/转写/分人）。
+# 没有 Java 后端、没有前端、没有数据库，因此按栈裁剪。
+
+domains:
+  code-backend:   none        # 无 Java/Spring 代码；DSH 插件与 Python 脚本跟随所在文件周边风格
+  code-frontend:  none        # 本期无 UI；M4 的自绘录音条（若有）届时把本行改回 global
+  logging:        global      # 级别判据/四类强制日志点/脱敏通用适用；logback 异步 appender 等 Java 专属条款不适用
+  api-design:     global      # 对外是 DSH 工具契约（参数/返回/错误码），接口设计底线可迁移
+  database:       none        # 无库表；转写与纪要走文件
+  git-workflow:   global
+  versioning:     global
+
+project_files:
+  - AGENTS.md                 # 本仓库唯一硬约束文件，永远生效
