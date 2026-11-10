@@ -177,4 +177,10 @@ test('长音频按 chunkSeconds 分片，每片一次请求', async () => {
   const result = await ctx.service.transcribe({ meetingId: long.meeting.id, engine: 'cloud' })
   assert.equal(result.ok, true, JSON.stringify(result))
   assert.equal(fetchImpl.calls.length, 3, `25 秒按 10 秒切片应有 3 次请求，实际 ${fetchImpl.calls.length}`)
+
+  // 偏移只能加一次：3 片 × 10 秒 → 最大时间戳必须落在 25 秒附近，而不是 55 秒
+  const json = JSON.parse(readFileSync(join(ctx.root, 'transcripts', `${long.meeting.id}.json`), 'utf8'))
+  const maxStart = Math.max(...json.segments.map((segment) => segment.start))
+  assert.ok(maxStart < 30, `片偏移被重复累加：最大时间戳 ${maxStart}s 超过音频时长 25s`)
+  assert.ok(json.segments.length >= 6, '三片各两段应至少 6 段')
 })
