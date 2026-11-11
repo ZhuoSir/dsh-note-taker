@@ -20,7 +20,7 @@
 
 ## 2. 流式客户端
 
-- [ ] T-03 `lib/asr/stream.js` 流式客户端
+- [x] T-03 `lib/asr/stream.js` 流式客户端
   关联: R-01, R-02, R-03, R-04, R-07
   依赖: T-01, T-02
   验证方式: 假 WS 契约测试 ≥10 例——①连接后先发 `session.update`，`input_audio_format` 为 `pcm`、`sample_rate` 16000；②收到 `session.created` 后开始按帧推送 `input_audio_buffer.append`（base64，3200 字节/帧）；③`text`+`stash` 拼接为 partial；④`completed` 用 `transcript` 回填并标记 final（不再被后续 partial 覆盖）；⑤同 `item_id` 重复事件去重；⑥`speech_started`/`speech_stopped` 打点为 startSec/endSec；⑦停录发 `input_audio_buffer.commit` 并等最后一帧（≤10s）；⑧服务端 `error` 事件转成可读错误；⑨连接失败/中途断开重连 2 次仍失败 → 状态 `degraded` 且带原因；⑩日志不含 Key
