@@ -194,6 +194,11 @@ test('卡片：录音中 / 识别中 / 确认区 三种阶段都能渲染', () =
   assert.match(flat, /"background":"#2f9e63"/, '录制中圆点为绿色令牌')
   assert.match(flat, /"aria-expanded":true/)
   assert.match(flat, /"border":"none"/, '入口无按钮边框')
+  // CR-01 / R-10：卡片锚在输入行上沿（bottom:100%），不得用 calc(100% + 8px) 把锚点推进行内
+  assert.match(flat, /"bottom":"100%"/, '卡片贴着输入行上沿')
+  assert.match(flat, /"alignSelf":"stretch"/, '入口撑满输入行高，使上沿锚点成立')
+  assert.match(flat, /"marginBottom":8/)
+  assert.doesNotMatch(flat, /calc\(100% \+ 8px\)/, '不再有把锚点推进输入行的偏移')
 
   // 识别中
   flat = JSON.stringify(withOverrides({ 0: true, 5: 'transcribing' })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
@@ -215,9 +220,10 @@ test('卡片：录音中 / 识别中 / 确认区 三种阶段都能渲染', () =
   assert.match(flat, /重试识别/)
   assert.match(flat, /识别失败/)
 
-  // 收起状态（R-05）：卡片不渲染，但入口常驻，且为灰点、不带计时
-  flat = JSON.stringify(withOverrides({ 0: false })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
-  assert.match(flat, /"children":\["会记"\]/, '收起时入口仍在')
+  // 收起状态（R-05 新语义，CR-01）：默认收起（slot 0 初始化即为 false），卡片不渲染，
+  // 入口常驻、灰点、不带计时
+  flat = JSON.stringify(withOverrides({})(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
+  assert.match(flat, /"children":\["会记"\]/, '默认收起时入口仍在')
   assert.match(flat, /"aria-expanded":false/)
   assert.doesNotMatch(flat, /"children":\["0:\d{2}"\]/, '未录音不显示计时')
   assert.doesNotMatch(flat, /开始录音/, '收起时不渲染卡片内容')

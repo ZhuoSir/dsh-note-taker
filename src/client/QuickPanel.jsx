@@ -13,7 +13,7 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import { createApi } from './api.js'
 import { buildHandoffMessage } from './handoff.js'
 import { copyText, hostStatusText, sendToSession } from './host.js'
-import { STREAM_CONSENT_TEXT, capabilitiesFrom, errorText, formatDateTime, formatDuration, liveView, needsStreamConsent, readPanelOpen, shouldPollLive, triggerView, writePanelOpen } from './logic.js'
+import { STREAM_CONSENT_TEXT, capabilitiesFrom, errorText, formatDateTime, formatDuration, liveView, needsStreamConsent, shouldPollLive, triggerView } from './logic.js'
 import { LIVE_POLL_MS } from './logic.js'
 import { theme } from './theme.js'
 
@@ -21,7 +21,12 @@ const POLL_MS = 2000
 const TRANSCRIBE_TIMEOUT_MS = 15 * 60 * 1000
 
 const styles = {
-  root: { position: 'relative', display: 'inline-block' },
+  // CR-01：root 撑满输入行高，使卡片的 bottom:100% 落在「输入行上沿」而不是「入口上沿」，
+  // 避免卡片压进输入行、吃掉点输入框的点击（实测缺陷：光标进不去，缩放窗口才恢复）
+  root: {
+    position: 'relative', display: 'inline-flex', alignItems: 'center',
+    alignSelf: 'stretch',
+  },
   // 入口：图标 + 文字，无按钮外观（R-01）；开合状态由 aria-expanded 表达，不靠边框
   trigger: {
     display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0,
@@ -34,7 +39,9 @@ const styles = {
   }),
   timing: { color: theme.textSecondary, fontVariantNumeric: 'tabular-nums' },
   panel: {
-    position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 40, width: 380,
+    // CR-01：间距改用 marginBottom，bottom 只表达「贴着输入行上沿」，不再把偏移量算进锚点
+    position: 'absolute', bottom: '100%', right: 0, zIndex: 40,
+    width: 380, maxWidth: 'min(380px, calc(100vw - 24px))', marginBottom: 8,
     padding: 12, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 8,
     border: `1px solid ${theme.border}`, fontSize: 12,
     background: theme.bg, color: theme.text, fontFamily: theme.font,
@@ -71,8 +78,8 @@ const PHASE_TEXT = {
 }
 
 export function QuickPanel({ sessionId } = {}) {
-  // 槽位 0 仍是 open：初始化读记忆，切换时写记忆，不新增 useState（保测试槽位顺序）
-  const [open, setOpen] = useState(readPanelOpen)
+  // 槽位 0 仍是 open；CR-01 撤销持久化：默认收起，不跨会话记忆
+  const [open, setOpen] = useState(false)
   const [rows, setRows] = useState([])
   const [health, setHealth] = useState(null)
   const [error, setError] = useState(null)
@@ -118,7 +125,7 @@ export function QuickPanel({ sessionId } = {}) {
   // 点面板外部或按 Esc 收起（R-04）：两个监听合成一个 effect，Esc 不阻止默认行为
   useEffect(() => {
     if (!open) return undefined
-    const close = () => { setOpen(false); writePanelOpen(false) }
+    const close = () => { setOpen(false) }
     const onDown = (event) => { if (rootRef.current && !rootRef.current.contains(event.target)) close() }
     const onKey = (event) => { if (event.key === 'Escape') close() }
     if (typeof document !== 'undefined') {
@@ -342,7 +349,7 @@ export function QuickPanel({ sessionId } = {}) {
       title: trigger.title,
       'aria-label': trigger.ariaLabel,
       'aria-expanded': trigger.expanded,
-      onClick: () => setOpen((value) => { const next = !value; writePanelOpen(next); return next }),
+      onClick: () => setOpen((value) => !value),
     },
       createElement('span', { key: 'dot', style: styles.dot(trigger.tone), 'aria-hidden': 'true' }),
       createElement('span', { key: 'label' }, trigger.label),

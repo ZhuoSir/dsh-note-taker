@@ -107,21 +107,21 @@ T-01 → T-02 → T-03 → T-04 → T-05 → T-07
 
 ## CR-01 新增任务（2026-11-11）
 
-- [ ] T-08 卡片锚点改为输入行上沿、且不与输入区重叠（CR-01 / R-10）
+- [x] T-08 卡片锚点改为输入行上沿、且不与输入区重叠（CR-01 / R-10）[产物断言 `"bottom":"100%"` / `"alignSelf":"stretch"` / `"marginBottom":8`，不再有 `calc(100% + 8px)`]
   依赖: 无 | 处置: 新增
   验收标准: `root` 增加 `alignSelf:'stretch'` 与 flex 居中；`panel` 改用 `bottom:'100%'` + `marginBottom:8`
   （不再用 `calc(100% + 8px)` 把锚点推进行内）；`panel.maxWidth` 兜窄屏；入口视觉位置不变。
   验证方式: 产物断言 `"bottom":"100%"` 与 `"alignSelf":"stretch"`；真机点输入框能进光标。
   日志断言: 无
 
-- [ ] T-09 撤销跨会话开合记忆（CR-01 / R-05）
+- [x] T-09 撤销跨会话开合记忆（CR-01 / R-05）[logic.js 删 27 行记忆三件套；grep 无残留；page-logic 回到 14 例]
   依赖: 无 | 处置: 新增（回退 T-03 的记忆部分）
   验收标准: 删 `PANEL_STATE_KEY`/`readPanelOpen`/`writePanelOpen`；`open` 回到 `useState(false)`；
   收起/展开不再写浏览器存储；`page-logic` 的 3 个记忆用例删除。
   验证方式: `node --test tests/page-logic.test.js` 贴输出（应回到 14 例）；`grep -r "panel-open" src/` 无命中。
   日志断言: 无
 
-- [ ] T-10 断言改写与真机复验（CR-01 / R-10 / S-08）
+- [ ] T-10 断言改写与真机复验（CR-01 / R-10 / S-08）— 断言已改并全绿（347 例），真机待用户
   依赖: T-08, T-09 | 处置: 新增（承接 T-04/T-07）
   验收标准: `page-render` 收起态用例改写成「默认收起」；新增断言「卡片展开时 panel 不进入输入行」
   （`"bottom":"100%"`）；真机：卡片展开、录制中直接点输入框能打字并发送。

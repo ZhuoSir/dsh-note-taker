@@ -73,3 +73,14 @@ T-07 需用户在真机上看观感、施工分支 eature/meeting-trigger 自 1
 
 - `86068f1`（T-01~T-06 实现）：T-01/T-06 保留；T-02/T-03/T-04/T-05 由 T-08~T-10 改造；
   不整体 revert——`triggerView`、圆点入口、Esc 收起、README 与产物脚本都仍然有效
+
+### CR-01 实现（2026-11-11）
+
+- T-08：`styles.root` 改 `inline-flex + alignItems:center + alignSelf:stretch`（撑满输入行高）；
+  `styles.panel` 由 `bottom:'calc(100% + 8px)'` 改为 `bottom:'100%' + marginBottom:8`，
+  并加 `maxWidth:'min(380px, calc(100vw - 24px))'` 兜窄屏
+- T-09：删除 `PANEL_STATE_KEY`/`readPanelOpen`/`writePanelOpen`（logic.js 减 27 行），
+  `open` 回到 `useState(false)`，toggle/close 不再写存储
+- T-10：渲染断言新增 `"bottom":"100%"`、`"alignSelf":"stretch"`、`"marginBottom":8`、
+  否定 `calc(100% + 8px)`；收起态用例改为空 overrides（默认收起）
+- 真实输出：`构建校验: lib/client.js 可重复构建（97a486af92fa）`，`tests 347 / pass 347 / fail 0`
