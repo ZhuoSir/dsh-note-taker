@@ -16,3 +16,28 @@
 - **确认②**（2026-11-11）确认人: 陈卓 —— plan.md 转 v1.0.0 已确认，进入 Phase 3
 - **Phase 3 任务**：9 条（T-01 配置 / T-02 sidecar 旁路 PCM / T-03 流式客户端 / T-04 live 路由 /
   T-05 service 接线 / T-06 路由与共享面回归 / T-07 字幕区 / T-08 隐私与 api / T-09 端到端）
+- **确认③**（2026-11-11）确认人: 陈卓 —— tasks.md 转 v1.0.0 已确认，进入 Phase 4 施工
+- **Phase 4 实现**（2026-11-11，分支 `feature/streaming-asr`）：
+  - T-01 `2f7836a`：`STREAM_ENV/STREAM_DEFAULTS/resolveStreamConfig`（默认关闭；缺 Key → `available:false`；
+    模型/端点非法 → `E_STATE`）+ 13 例
+  - T-02 `26809e1`：`py/record.py --pcm-out` 双写（WAV 永不受影响，PCM 坏了只记一次日志并停写）+ smoke 两种模式
+  - T-03 `d6dbbc5`：`lib/asr/stream.js`（预连排队、item 去重、按字节推时间戳、静默窗收尾、重连 2 次后降级）+ 13 例
+  - T-04 `eeca836`：`lib/live.js` 内存快照 + `GET /note-taker/live`（非法 id → 400）+ 8 例
+  - T-05 `4a27009`：service 接线（`--pcm-out`、tail 推流、`live` 挂载、停录 finalize→落盘→删旁路；
+    降级排一次非流式兜底；白名单加 `stream`；capabilities 加 `stream` 段）+ 7 例
+  - T-06 `0c8aa0d`：record 路由透传 `stream/sessionId`；共享面回归（7 工具契约、非流式全链路）+ 3 例
+  - T-07/T-08 `083acc2`：卡片字幕区（定稿强/中间弱、等待语音、降级冻结、颜色只用 theme 令牌）、
+    流式首次确认（文案含「录音期间持续上传音频到阿里云百炼」）、500ms 轮询（页面隐藏暂停）、
+    停录按 used/degraded 分流；设置页补「流式识别」两项并映射到 `NOTE_TAKER_STREAM_*`（显式 false → `'0'`）+ 19 例
+  - T-09 补充：`ws` 运行时依赖 + `resolveWebSocketImpl()`（内置 WebSocket 带不了 Authorization 头）；
+    `tests/stream-ws.test.js` 用本地 ws 服务端复刻真实时序（鉴权头/`pcm`/append 10 帧/commit→completed）
+  - 过程中修掉两个真 bug：① `finalize()` 在 `committed` 就收尾会丢最后一句（改为静默窗，且起点取
+    `max(最后事件, commit 发出)`）；② 建连阶段断线时 `connect()` 的 Promise 永不 settle（重连循环之外没人叫醒）
+- **验证证据**（2026-11-11，danger-full-access）：
+  - `npm run verify` → 构建校验通过（lib/client.js 可重复构建 `9f3c81211fed`）+ `tests 331 / pass 331 / fail 0`
+  - 宿主实跑（`dsh web --port 8099 --no-open`，web profile）：`路由注册完成 routes=10`；
+    `GET /note-taker/health` 200 且带 `stream:{enabled:false,available:false,reason:"missing_key",model:"qwen3-asr-flash-realtime"}`；
+    `GET /note-taker/live?id=…` 200 idle 快照；`GET /note-taker/config` 200 且含 `asr.stream`；
+    `live?id=../etc/passwd` → 400 `E_STATE`；`POST /record {stream:true}` → 400 `E_DEP`（缺 Key 前置拒绝，`/list` 仍为空）
+  - **未完成**：真实云端 + 真实麦克风的 20 秒流式录音（字幕 3 秒内出现 / 停录 10 秒内出结果）——
+    本机没有 `DASHSCOPE_API_KEY`，无法由 agent 侧代跑；T-09 保持未勾，待用户补验

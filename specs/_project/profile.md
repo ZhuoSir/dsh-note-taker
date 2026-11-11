@@ -11,7 +11,7 @@
 | 插件宿主 | DSH 插件（Cordis）：`cordis.patch.yml` + `lib/index.js`（`export name / inject / apply`），Node.js ESM（`"type": "module"`） |
 | 运行时 | Node v24.16.0、npm 11.13.0、pnpm 11.8.0、git 2.54.0 |
 | sidecar | Python 3.14.5（`C:\Users\KypCa\AppData\Local\Python\pythoncore-3.14-64`） |
-| 已装依赖（2026-11-11 实测） | 运行时零依赖；devDependencies: `esbuild ^0.28.2`（构建 `lib/client.js`）。Python 侧：faster-whisper 1.2.1、ctranslate2 4.8.1、PyAV(av)、onnxruntime 1.29.0、numpy、scipy、sounddevice 0.5.6（`pylibs/`） |
+| 已装依赖（2026-11-11 实测） | 运行时依赖: `ws ^8.22.2`（实时 ASR 要带 Authorization 头，内置 WebSocket 做不到，见 L-21）；devDependencies: `esbuild ^0.28.2`（构建 `lib/client.js`）。Python 侧：faster-whisper 1.2.1、ctranslate2 4.8.1、PyAV(av)、onnxruntime 1.29.0、numpy、scipy、sounddevice 0.5.6（`pylibs/`） |
 | 缺失依赖 | `sherpa-onnx`（cp314 轮子不可用，见技术债）、`soundcard`（loopback 录音） |
 | 计划引入 | 无（原「独立 Python 3.12 跑 sherpa 分人」已取消：分人改由云端 3.1 提供，BL-02 关闭） |
 
@@ -26,13 +26,13 @@ lib/index.js            宿主侧入口：工具注册 + 可选注入 webServer/
 lib/tools.js            7 个 meeting_* 工具（output 同时带 type 与 schema/render，见 L-13）
 lib/service.js          业务编排：录音/转写/导入/纪要/产物/状态自愈
 lib/routes.js           /note-taker/* 共 10 条精确路由（list/detail/health/config/transcribe/minutes/record/import/label…）
-lib/asr/                双引擎：local(faster-whisper) / cloud(百炼 HTTP，含分片与分人)；WS 流式客户端已于 CR-01 退役
+lib/asr/                双引擎：local(faster-whisper) / cloud(百炼 HTTP，含分片与分人)；stream.js 是流式实时 ASR 客户端（默认关，失败降级回 HTTP）
 lib/output.js           产物单文件（工作区 meetings/<id>.md，回落数据目录）
 lib/settings.js         配置读写与优先级（页面 > 环境变量 > 默认，掩码回显）
 lib/client.js           浏览器侧产物（esbuild 打包，`window.__ModuleLoader__.load` 格式）
 src/client/             React 18 源码：SettingsPage（配置/历史纪要两 tab）、QuickPanel（录音→确认→交会话）、logic/api/host/handoff
 py/                     Python sidecar：record.py（录音）/ transcribe.py（本地 ASR）/ decode_pcm.py / fetch_model.py
-tests/                  node --test 单测（267 个）
+tests/                  node --test 单测（331 个）
 scripts/                verify.mjs（结构 41 项 + 构建可重复 + 单测）/ build-client.mjs / e2e.mjs / smoke-*.mjs
 ```
 
@@ -72,8 +72,8 @@ scripts/                verify.mjs（结构 41 项 + 构建可重复 + 单测）
 
 ```
 结构检查: 41 项全部存在
-构建校验: lib/client.js 可重复构建（b5fa4ea12d4d）
-tests 267 / pass 267 / fail 0
+构建校验: lib/client.js 可重复构建（9f3c81211fed）
+tests 331 / pass 331 / fail 0
 ```
 
 既有失败清单：无。

@@ -245,3 +245,57 @@
 - 状态: active
 - 复发: ×1
 - 关联: 本轮收尾首次完整 verify 时踩到；用户随后把会话策略改为 danger-full-access
+
+## L-18 DashScope 实时 ASR 的音频格式只认 `pcm`，写 `pcm16` 直接 500
+
+- 分类: 依赖漂移
+- 触发场景: 按 OpenAI Realtime 的习惯写 `input_audio_format: 'pcm16'`
+- 坑: 服务端不回「参数不合法」，而是回 `Internal service error: Audio format is not valid 'pcm16'!`，
+  看起来像服务挂了；改成 `pcm` 立刻正常。采样率字段名是 `sample_rate`（数字），不是 `input_audio_format` 的一部分。
+- 根因: 该端点借用了 OpenAI Realtime 的事件形状，但字段取值是自己的子集，且错误文案不指向我们的参数名。
+- 防再犯规则: 接第三方「形似某协议」的接口，先用**最小帧**探一次真实取值（探针脚本留档到
+  `.tmp/probe-*.mjs`，证据写进 plan/changelog），不要照抄协议文档的示例值。
+- 状态: active
+- 复发: ×1
+- 关联: `lib/asr/stream.js` 的 `buildSessionUpdate`；tests/asr-stream.test.js 锁定 `pcm`
+
+## L-19 实时识别的收尾顺序是 `speech_stopped → committed → completed`
+
+- 分类: 判断
+- 触发场景: 停录时发 `input_audio_buffer.commit`，想「收到 committed 就收工」
+- 坑: 在 `committed` 收工会丢掉最后一句——真正带文本的 `completed` 在它之后约 0.15 秒才到。
+  更隐蔽的是：commit 发出后如果按「距最后一个事件的静默时长」判定收工，而上一个事件早已过去，
+  就会**立刻**判定安静，收尾拿到 0 段。
+- 根因: 静默窗口的参照点选错了（应为「最后一次事件」与「commit 发出」里更晚的那个）。
+- 防再犯规则: 异步协议的收尾判定，计时起点必须包含「我方最后一次动作」；并用**真实服务端**
+  回放这类时序（本项目 `tests/stream-ws.test.js` 用本地 ws 服务端复刻该顺序）。
+- 状态: active
+- 复发: ×1
+- 关联: `lib/asr/stream.js` 的 `maybeFinish()`/`commitSentAt`
+
+## L-20 `qwen-audio-*-realtime-flash` 是 omni 对话模型，会对着音频「回话」
+
+- 分类: 验证盲区
+- 触发场景: 从模型清单里挑「名字里带 realtime + audio + asr 家族」的模型做流式转写
+- 坑: `qwen-audio-3.1-realtime-flash` / `3.0` 连上后会给 `response.text.done`——
+  内容是「哈哈，我猜你可能是想问…」这类对话回复，不是转写文本；纯 ASR 要用 `qwen3-asr-flash-realtime`。
+- 根因: realtime 家族里混着「对话」和「识别」两种用途，命名不足以区分。
+- 防再犯规则: 选模型时用**同一段已知语音**跑一次，断言输出等于语音内容而不是「像回答」的句子；
+  选型结论写进 plan 的决策表，避免下个人再试一遍。
+- 状态: active
+- 复发: ×1
+- 关联: plan.md 决策 1；changelog Phase 2 探针记录
+
+## L-21 Node 内置 WebSocket 不能带 `Authorization` 头，实时接口必须用 `ws`
+
+- 分类: 依赖漂移
+- 触发场景: 想「零依赖」用 `globalThis.WebSocket` 连 DashScope 实时接口
+- 坑: 内置实现只接受子协议（`new WebSocket(url, protocols)`），没有自定义 header 的位置；
+  传 `{ headers }` 会被忽略，服务端 401/直接断开——表现为「连上了又立刻断」或彻底连不上，
+  而错误信息只有 code=1006。
+- 根因: WHATWG WebSocket 规范本身不支持自定义请求头，鉴权只能靠子协议或 cookie。
+- 防再犯规则: 需要 Bearer 头的 WS 连接一律显式用 `ws` 包（本项目已加为运行时依赖，
+  且 `resolveWebSocketImpl()` 优先取它，取不到才退内置实现并降级）。
+- 状态: active
+- 复发: ×1
+- 关联: `lib/service.js` 的 `resolveWebSocketImpl()`；tests/stream-ws.test.js 断言鉴权头真实发出
