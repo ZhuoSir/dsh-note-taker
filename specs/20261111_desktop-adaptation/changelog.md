@@ -48,5 +48,8 @@
   - 真机只读自检 `npm run verify:desktop` → 五项全 ✓（依赖=bundles=链接=lockfile=可解析出 `apply,inject,name,…`）、
     `Key来源=none`、`兼容检查 宿主版本=0.1.7-rc.2 说明=已在声明列表内`，退出码 0
   - 真机安全阀 `npm run install:desktop`（桌面版在跑）→ `ERROR 检测到桌面版在运行，已中止` `进程数=6`，退出码 2
-- **T-07 待用户**：重启桌面版后在应用内核验（设置页出现「会记」、卡片录 5 秒出产物），
-  属唯一需要应用重启的人工验证项
+- **T-07 真机**（2026-11-11）用户重启桌面版后自测，反馈「目前还行」——桌面版内可用，7/7 任务完成
+- **坑沉淀**：`lessons.md` 新增 L-22（Windows 上 `execFileSync('dsh', …)` 因 .cmd 包装拿不到版本）、
+  L-23（desktop profile 被 Electron 独占，只能脚本化改文件）、L-24（PowerShell `Add-Content` 默认 GBK，
+  会毁 UTF-8 的 md——本次追加 L-22/L-23 时当场踩到并修复）
+- **完成报告**：`completion.md`（R-01~R-09 覆盖表、12 例单测与 344 例全量测试输出、真机自检与安全阀输出、取舍与未做项）
