@@ -299,3 +299,46 @@
 - 状态: active
 - 复发: ×1
 - 关联: `lib/service.js` 的 `resolveWebSocketImpl()`；tests/stream-ws.test.js 断言鉴权头真实发出
+
+## L-22 Windows 上 `execFileSync('dsh', …)` 拿不到输出，因为 `dsh` 是 .cmd 包装
+
+- 分类: 平台差异
+- 触发场景: 安装器里用 `execFileSync('dsh', ['--version'])` 读宿主版本，做兼容性告警
+- 坑: 不报错也不给值（被 catch 吞掉后表现为「无法判定宿主版本」），兼容检查永远跳过——
+  看起来像「没有告警」，实际是「检测从未跑成功」
+- 根因: `dsh` 在 Windows 上是 `dsh.cmd`/`.ps1` 脚本，`execFile` 不走 shell 无法执行脚本包装
+- 防再犯规则: Windows 上跑 CLI 包装用 `execSync('dsh --version', { shell: true })`，
+  或显式指向 `dsh.cmd`；任何「拿不到版本就静默跳过」的分支都要在日志里说出来（本项目打
+  `兼容检查 说明=无法判定宿主版本，跳过兼容告警`，正是这条日志暴露了问题）
+- 状态: active
+- 复发: ×1
+- 关联: `scripts/desktop.mjs` 的 `readHostVersion()`；实测修好后读到 `0.1.7-rc.2`
+
+## L-23 桌面版 profile 被 Electron 独占，只能靠脚本改文件，不能靠 CLI
+
+- 分类: 环境限制
+- 触发场景: 想把插件装进 `~/.dsh/profiles/desktop`
+- 坑: `dsh plugin --profile desktop add …` 直接报
+  `profile "desktop" is managed exclusively by the Electron application`；
+  手改 `package.json` + 建 junction + `pnpm install --lockfile-only` 能成，但不可重复、不可回滚
+- 根因: 宿主对 desktop profile 有独占守卫（这是 CLI 层的守卫，不是文件锁——文件可以改）
+- 防再犯规则: 装桌面版一律走 `npm run install:desktop`（幂等 + 装前备份 + 失败回滚 + 五项自检）；
+  不要临场手改 profile，也不要试图绕过 CLI 守卫
+- 状态: active
+- 复发: ×1
+- 关联: `specs/20261111_desktop-adaptation`；`lib/desktop.js`、`scripts/desktop.mjs`
+
+## L-24 PowerShell 的 `Add-Content` 默认按 GBK 落盘，会毁掉 UTF-8 的 md
+
+- 分类: 工具链
+- 触发场景: 用 `Add-Content -Path specs/_project/lessons.md -Value @'…'@` 追加中文段落
+- 坑: 追加成功、内容看着也对，但文件变成「前段 UTF-8 + 后段 GBK」的混合编码；
+  下一次 `mdtable_check.py` 直接报 `'utf-8' codec can't decode byte 0xc9`（不是表格不合格，是文件读不了），
+  而且 `git diff` 里整段变乱码
+- 根因: Windows PowerShell 5.1 的 `Add-Content`/-Value 默认用系统 ANSI（GBK）编码写文件
+- 防再犯规则: 改文本文件一律用编辑工具或 Node 脚本（`writeFileSync(file, text, 'utf8')`）；
+  必须用 PowerShell 时显式 `-Encoding utf8`。已经写坏时：按最后一段的起始标记切分，
+  前半段按 UTF-8、后半段按 GBK 解码后重写为 UTF-8（见 `.tmp/fix-lessons-encoding.py`）
+- 状态: active
+- 复发: ×1
+- 关联: 2026-11-11 追加 L-22/L-23 时踩到；与 L-14（PowerShell 改 JS 吃反引号）同源

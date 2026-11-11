@@ -31,3 +31,25 @@
   T-04 卸载与不动他人 / T-05 运行检测与 --force / T-06 README / T-07 桌面版真机验证），含覆盖自检表
 - **确认③**（2026-11-11）确认人: 陈卓 —— 用户「确认」：tasks.md 转 v1.0.0 已确认；
   三重确认自检通过（三份均 `状态: 已确认`、确认人 陈卓），允许进入 Phase 4
+- **Phase 4 实现**（2026-11-11，分支 `feature/desktop-adaptation`）：
+  - T-01/T-02：`lib/desktop.js`（安装/卸载/自检纯逻辑，fs·pnpm·进程探测·时钟全部可注入）+ `scripts/desktop.mjs`
+    （CLI 薄壳，退出码 0/2/3）+ 三条 npm script（`install:desktop` / `uninstall:desktop` / `verify:desktop`）
+  - T-03：五项自检 + `Key来源=page|env|none`（只报来源不报值）+ 兼容告警（宿主版本取 `dsh --version`，
+    Windows 下需 shell 解析 .cmd 包装）+ 升级语义（链接安装，输出生效路径/HEAD）
+  - T-04：卸载摘接线 + 「其它 8 个插件逐字未变」断言 + 数据目录保留提示
+  - T-05：安装/卸载前探测 `DeepSeek Harness.exe`，默认拒绝（退出码 2），`--force` 才继续
+  - T-06：README 增「装进桌面版（Electron）」一节（三条命令、五项自检表、退出码、Key 来源、卸载不动数据）
+  - 实现期修的一个真问题：`execFileSync('dsh', ['--version'])` 在 Windows 上拿不到版本（`dsh` 是 .cmd 包装），
+    导致兼容检查永远「无法判定」；改用 `execSync` + `shell: true` 后读到 `0.1.7-rc.2`
+- **验证证据**（2026-11-11，danger-full-access）：
+  - `node --test tests/desktop-install.test.js` → `tests 12 / pass 12 / fail 0`（安装/幂等/非法 JSON/
+    pnpm 失败回滚/卸载逐字断言/运行检测/CLI 退出码/链接断裂/Key 来源/兼容告警）
+  - `npm run verify` → 结构检查 41 项、构建可重复（`9f3c81211fed`）、`tests 344 / pass 344 / fail 0`
+  - 真机只读自检 `npm run verify:desktop` → 五项全 ✓（依赖=bundles=链接=lockfile=可解析出 `apply,inject,name,…`）、
+    `Key来源=none`、`兼容检查 宿主版本=0.1.7-rc.2 说明=已在声明列表内`，退出码 0
+  - 真机安全阀 `npm run install:desktop`（桌面版在跑）→ `ERROR 检测到桌面版在运行，已中止` `进程数=6`，退出码 2
+- **T-07 真机**（2026-11-11）用户重启桌面版后自测，反馈「目前还行」——桌面版内可用，7/7 任务完成
+- **坑沉淀**：`lessons.md` 新增 L-22（Windows 上 `execFileSync('dsh', …)` 因 .cmd 包装拿不到版本）、
+  L-23（desktop profile 被 Electron 独占，只能脚本化改文件）、L-24（PowerShell `Add-Content` 默认 GBK，
+  会毁 UTF-8 的 md——本次追加 L-22/L-23 时当场踩到并修复）
+- **完成报告**：`completion.md`（R-01~R-09 覆盖表、12 例单测与 344 例全量测试输出、真机自检与安全阀输出、取舍与未做项）
