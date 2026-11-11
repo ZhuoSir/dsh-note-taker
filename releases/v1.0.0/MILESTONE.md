@@ -13,7 +13,7 @@
 | specs/20261110_meeting-workspace-output | v1.0.0 | 已合并 | 0 | 0 | 产物写入会话工作区 meetings/，交接改为引用 md 路径；T-08 已补验 |
 | specs/20261110_meeting-agent-import | v1.0.0 | 已合并 | 0 | 0 | 会话驱动导入：新增 meeting_import 工具，音频→转写→产物路径，纪要由 agent 自己读写；5/5 完成 |
 | specs/20261111_streaming-asr | v0.1.0 | 已合并 | 0 | 0 | 流式上传 + 流式 ASR（BL-06）；9/9 任务完成，真机补验通过（首字 0.91s、停录 0.99s、降级路径实测），合并于 `75d8afc` |
-| specs/20261111_desktop-adaptation | v0.1.0 | 立项中 | 0 | 0 | 桌面版（Electron）安装与升级：一条命令幂等安装/卸载、装前备份、装后自检；只做安装层，不做托盘/通知等交互适配 |
+| specs/20261111_desktop-adaptation | v1.0.0 | 已合并 | 0 | 0 | 桌面版（Electron）安装与升级：一条命令幂等安装/卸载、装前备份、装后五项自检；7/7 任务完成，真机自测通过，合并于 `b804fe9` |
 
 ## 纳入缺陷（随版修复批）
 

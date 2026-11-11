@@ -53,3 +53,10 @@
   L-23（desktop profile 被 Electron 独占，只能脚本化改文件）、L-24（PowerShell `Add-Content` 默认 GBK，
   会毁 UTF-8 的 md——本次追加 L-22/L-23 时当场踩到并修复）
 - **完成报告**：`completion.md`（R-01~R-09 覆盖表、12 例单测与 344 例全量测试输出、真机自检与安全阀输出、取舍与未做项）
+- **合并**（2026-11-11）: `feature/desktop-adaptation` 以 `--no-ff` 合入 `1.0.0`，合并提交 `b804fe9`
+  （feature 分支末位提交 `d1b58e6`）。合并后复跑 `npm run verify`：结构检查 41 项、构建可重复
+  `9f3c81211fed`、`tests 344 / pass 344 / fail 0`。MILESTONE 第 8 行转「已合并」，`version.md` 已挂数 7 → 8。
+  未打 tag、未冻结版本（另需口令）
+- **补记（L-14 复发）**：用 PowerShell 内联 `node -e` 改 `version.md` 时反引号被当转义吃掉，
+  写入 `\x08`/`\x01` 残渣（反引号+b 变退格、反引号+1 被丢）；已用 `.tmp/fix-version-md.py` 重写该段，
+  并全仓扫过控制字符（0 个文件命中）
