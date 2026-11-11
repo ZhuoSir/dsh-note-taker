@@ -1,6 +1,7 @@
 # 技术方案：meeting-trigger
 
-> 版本: v0.1.0 | 状态: 已确认 | 更新: 2026-11-12 | 确认人: 陈卓 | 确认日期: 2026-11-12
+> 版本: v0.2.0 | 状态: 待重确认 | 更新: 2026-11-11 | 确认人: | 确认日期:
+> 变更: CR-01（卡片定位与开合记忆，见 `changes/CR-01_panel-blocks-input.md`）
 > 需求: `requirements.md` v0.1.0（已确认，陈卓 2026-11-12）
 
 ## 一、坑核对（门控节，确认②先审这一节）
@@ -93,6 +94,37 @@ const toggle = () => setOpen((prev) => { const next = !prev; writeStoredOpen(nex
 - `Esc` 收起：在现有 `useEffect`（监听 `mousedown`）里一并加 `keydown`，仅当 `open` 时挂载；**不 preventDefault**，避免与宿主自己的 Esc 行为打架（若宿主已用 Esc 做别的事，两边都响应也不算冲突，因为这里只关自己的面板）；
 - 点击外部仍沿用现有 `rootRef.contains` 判断，不改。
 
+### 2.3a 卡片定位：不与输入区重叠（CR-01 / R-10）
+
+现状（已实测为缺陷）：`root` 只有入口那么大（约 16px 高），`panel` 用 `bottom: calc(100% + 8px)` 定位，
+锚点算的是「入口上沿」而不是「输入行上沿」，于是卡片下沿压进输入行，点输入框时点击被卡片吃掉
+（用户实测：收起卡片即可输入；缩放窗口可恢复）。
+
+改法：
+
+```js
+root: {
+  position: 'relative', display: 'inline-flex', alignItems: 'center',
+  alignSelf: 'stretch',        // 撑满输入行高，使 bottom:100% 等于输入行上沿
+},
+panel: {
+  position: 'absolute', bottom: '100%', right: 0, zIndex: 40,
+  width: 380, maxWidth: 'min(380px, calc(100vw - 24px))',
+  marginBottom: 8,             // 用 margin 换间距，不再用 calc(100% + 8px) 把锚点推进行内
+  ...
+},
+```
+
+- `alignSelf: 'stretch'` 让 root 与输入行等高，`bottom: 100%` 自然落在输入行上沿
+- 间距用 `marginBottom` 表达，避免再次出现「偏移量吃掉行内空间」的错误
+- `maxWidth` 兜窄窗口，防止 380px 在窄窗口溢出
+
+### 2.3b 撤销跨会话开合记忆（CR-01 / R-05）
+
+删除 `PANEL_STATE_KEY`、`readPanelOpen`、`writePanelOpen`；`open` 回到 `useState(false)`；
+`close()` 与 toggle 不再写存储。理由：持久化让展开态跨会话常开，是本次「所有会话都打不了字」的放大器，
+且用户明确要求默认收起。
+
 ### 2.4 主题安全（R-08）
 
 只用 `theme.textMuted`、`theme.success`、`theme.textSecondary` 三个既有令牌，不新增常量、不写 `#xxxxxx`。
@@ -109,6 +141,9 @@ const toggle = () => setOpen((prev) => { const next = !prev; writeStoredOpen(nex
 | 记忆存 cookie / 服务端配置 | 纯前端偏好，服务端存储会引入同步与清理负担；cookie 还会随请求发给宿主 |
 | 入口悬停才显形（隐藏入口） | 用户选的是「卡片可收，入口常驻」 |
 | 卡片改为内联展开（撑开输入区） | 改动量远大于本需求，且会碰宿主输入区布局 |
+| 用 `pointer-events: none` 让卡片不吃点击（CR-01 补） | 治标：卡片仍压在输入上方，用户看不见自己在打什么；R-10 要求不重叠 |
+| 录制时自动收起卡片（CR-01 补） | 掩盖问题：录制中仍需看字幕，停止后再次遮挡 |
+| 卡片 portal 到窗口右下角（CR-01 补） | 引入与宿主布局（滚动/缩放/多窗口）的耦合；本次只改锚点即可满足 R-10 |
 
 ## 三、共享面身份矩阵
 
@@ -147,10 +182,15 @@ const toggle = () => setOpen((prev) => { const next = !prev; writeStoredOpen(nex
 
 ## 六、任务拆解预告（Phase 3 细化）
 
-1. `logic.js` 加 `triggerView` + 单测
-2. `QuickPanel.jsx` 入口改造（样式 + DOM + aria）
-3. 记忆与 Esc（不新增 useState）
-4. 改 `page-render.test.js` 的入口断言
-5. 重建 `lib/client.js` 并提交
-6. 真机验证（浅/深主题、刷新记忆、Esc、录一圈看变绿）
-7. 文档：README 的入口描述同步（若提到按钮）
+| # | 任务 | 状态 |
+|---|---|---|
+| T-01 | `logic.js` 加 `triggerView` + 单测 | 已完成 |
+| T-02 | `QuickPanel.jsx` 入口改造（样式 + DOM + aria） | 已完成（CR-01 改造） |
+| T-03 | 记忆与 Esc | 已完成（CR-01 回退记忆部分 → T-09） |
+| T-04 | 改 `page-render.test.js` 的入口断言 | 已完成（CR-01 拆分 → T-10） |
+| T-05 | 重建 `lib/client.js` 并提交 | 已完成（T-08/T-09 后需再建） |
+| T-06 | README 入口描述同步 | 已完成 |
+| T-07 | 真机验证 | 由 T-10 重做 |
+| T-08 | 卡片锚点改为输入行上沿、不遮挡（CR-01） | 待做 |
+| T-09 | 撤销跨会话开合记忆（CR-01） | 待做 |
+| T-10 | 断言改写 + 真机复验「录制中可打字」（CR-01） | 待做 |
