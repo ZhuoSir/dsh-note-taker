@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 会记页面的纯逻辑（无 React / 无 DOM / 无 fetch）。
  *
  * 抽出来的目的：这一层能被单测覆盖（R-09），组件只负责把它渲染出来。
@@ -114,6 +114,66 @@ export function needsCloudConsent(engine, acknowledged = false) {
 
 export const CLOUD_CONSENT_TEXT = '云端转写会把音频上传至阿里云百炼（DashScope）进行识别，是否继续？'
 
+/** 流式识别：录音期间是持续上传，文案必须说清「持续」二字（R-08） */
+export const STREAM_CONSENT_TEXT = '流式识别会在录音期间持续上传音频到阿里云百炼（DashScope）实时识别，是否继续？'
+
+/** 流式首次启用是否需要再次确认（R-08）：本次会话确认过就不再问 */
+export function needsStreamConsent({ streamEnabled, acknowledged } = {}) {
+  return streamEnabled === true && acknowledged !== true
+}
+
+const LIVE_STATE_TEXT = Object.freeze({
+  connecting: '连接中…',
+  streaming: '实时识别中',
+  finalizing: '收尾中…',
+  done: '识别完成',
+  degraded: '已降级',
+})
+
+/** 静默多少秒后提示「等待语音」（R-02 的可感知性） */
+export const LIVE_WAIT_SECONDS = 5
+
+/** 字幕轮询间隔（R-02）：500ms 比 3 秒的要求留足余量 */
+export const LIVE_POLL_MS = 500
+
+/** 该不该拉一次字幕（R-02/R-08）：只在流式录音期间，且页面可见时拉 */
+export function shouldPollLive({ phase, streaming, hidden } = {}) {
+  return phase === 'recording' && streaming === true && hidden !== true
+}
+
+/**
+ * 流式快照 → 字幕区渲染数据（纯函数，R-02/R-03）。
+ * 语义约定：finals 是已定稿的强文本，partial 是随时会被改写的弱文本。
+ */
+export function liveView(snapshot, { silenceSec = 0 } = {}) {
+  const state = snapshot?.state
+  if (!state || state === 'idle') return null
+
+  const finals = (snapshot.finals ?? []).map((item, index) => ({
+    key: `${index}-${item.startSec ?? 0}`,
+    timeText: formatDuration(item.startSec ?? 0),
+    text: String(item.text ?? ''),
+  }))
+  const partial = String(snapshot.partial ?? '')
+  const degraded = state === 'degraded'
+
+  return {
+    state,
+    // 色调只表达「正常/异常/完成」，具体颜色由组件从 theme 令牌取
+    tone: degraded ? 'error' : state === 'done' ? 'ok' : 'active',
+    statusText: LIVE_STATE_TEXT[state] ?? state,
+    finals,
+    partial,
+    chars: Number(snapshot.chars ?? 0),
+    elapsedText: formatDuration(snapshot.elapsedSec ?? 0),
+    // 降级后不再更新字幕；只在「还在连/在识别」且长时间没字时才提示等待
+    waiting: !degraded && state !== 'done' && partial === '' && Number(silenceSec) >= LIVE_WAIT_SECONDS,
+    frozen: degraded || state === 'done',
+    degradedReason: snapshot.degradedReason ?? null,
+    blank: finals.length === 0 && partial === '',
+  }
+}
+
 /** 详情页正文分块：默认只渲染前 N 段，避免 550 段卡死 */
 export function paginateTranscript(text, { chunk = 100, showAll = false } = {}) {
   const lines = String(text ?? '').split('\n')
@@ -151,5 +211,10 @@ export function capabilitiesFrom(health) {
     cloudModel: health?.cloud?.model ?? null,
     recordingReady: health?.recording?.available === true,
     localModels: health?.local?.models ?? [],
+    // 流式：配置开启 + 密钥就绪才算可用（R-09），否则卡片不弹确认也不发流式请求
+    streamEnabled: health?.stream?.enabled === true,
+    streamAvailable: health?.stream?.available === true,
+    streamModel: health?.stream?.model ?? null,
+    streamReady: health?.stream?.enabled === true && health?.stream?.available === true,
   }
 }

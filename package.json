@@ -80,5 +80,8 @@
   "private": true,
   "devDependencies": {
     "esbuild": "^0.28.2"
+  },
+  "dependencies": {
+    "ws": "^8.22.2"
   }
 }

@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict'
+import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { buildRoutes } from '../lib/routes.js'
@@ -38,11 +38,11 @@ async function invoke(route, req) {
 
 const configRoute = (routes) => routes.find((item) => item.path === '/note-taker/config')
 
-test('9 条 exact 路由，含 config 与 label', () => {
+test('10 条 exact 路由，含 config 与 label', () => {
   const { service } = fakeService()
   const routes = buildRoutes({ service, logger: loggerSpy() })
 
-  assert.equal(routes.length, 9)
+  assert.equal(routes.length, 10)
   assert.ok(configRoute(routes))
   assert.ok(routes.every((item) => item.kind === 'exact'))
 })

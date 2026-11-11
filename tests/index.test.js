@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict'
+import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -120,9 +120,10 @@ test('宿主有 webServer 时通过可选注入注册九条路由', () => {
   const result = JSON.parse(line.replace('__ROUTES__', ''))
 
   assert.equal(result.ok, true)
-  assert.equal(result.routes.length, 9)
+  assert.equal(result.routes.length, 10)
   assert.ok(result.routes.includes('/note-taker/health'))
   assert.ok(result.routes.includes('/note-taker/import'))
+  assert.ok(result.routes.includes('/note-taker/live'))
 })
 
 test('宿主没有注入能力时不抛异常，插件仍启动', () => {

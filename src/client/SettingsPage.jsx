@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 设置区「会记」页：配置 + 历史纪要（R-01~R-04）。
  *
  * 纪律：
@@ -115,6 +115,10 @@ export function SettingsPage() {
         model: form.cloud.model,
       },
     }
+    // 流式两项（R-09）：服务端没返回这段时不要凭空写空模型名
+    if (form.asr?.stream) {
+      patch.asr.stream = { enabled: form.asr.stream.enabled === true, model: String(form.asr.stream.model ?? '') }
+    }
     if (form.dataRoot) patch.dataRoot = form.dataRoot
 
     const result = await api.saveConfig(patch)
@@ -199,6 +203,27 @@ export function SettingsPage() {
           createElement('input', {
             type: 'number', min: 10, max: 3600, style: styles.input, value: form.asr.chunkSeconds,
             onChange: (event) => update('asr', 'chunkSeconds', event.target.value),
+          }),
+        ),
+      ),
+
+      createElement('div', { style: { fontSize: 13, fontWeight: 600, marginTop: 4 } }, '流式识别'),
+      createElement('div', { style: styles.row },
+        createElement(Field, { label: '录音期间实时出字', hint: '开启后录音时持续上传音频，停录即出字；需云端 Key' },
+          createElement('label', { style: styles.radio },
+            createElement('input', {
+              type: 'checkbox',
+              checked: form.asr?.stream?.enabled === true,
+              onChange: (event) => update('asr', 'stream', { ...(form.asr?.stream ?? {}), enabled: event.target.checked }),
+            }),
+            form.asr?.stream?.enabled === true ? '已开启（录音期间持续上传）' : '未开启（停录后再识别）',
+          ),
+        ),
+        createElement(Field, { label: '流式模型', hint: '缺省 qwen3-asr-flash-realtime；换模型要自己也支持流式', error: fieldErrors['asr.stream.model'] },
+          createElement('input', {
+            type: 'text', style: styles.input, value: form.asr?.stream?.model ?? '',
+            spellCheck: false,
+            onChange: (event) => update('asr', 'stream', { ...(form.asr?.stream ?? {}), model: event.target.value }),
           }),
         ),
       ),

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 会记页面的接口封装（浏览器侧）。
  *
  * 职责：
@@ -97,7 +97,8 @@ export function createApi({ baseUrl = '', fetchImpl = globalThis.fetch, timeoutM
     saveConfig: (patch) => request('/config', { method: 'POST', body: patch }),
     transcribe: ({ id, engine, sessionId } = {}) => longAction('/transcribe', { id, engine, sessionId }, { engine }),
     minutes: ({ id, force, sessionId } = {}) => request('/minutes', { method: 'POST', body: { id, force, sessionId } }),
-    record: ({ action, label } = {}) => request('/record', { method: 'POST', body: { action, label } }),
+    record: ({ action, label, stream, sessionId } = {}) => request('/record', { method: 'POST', body: { action, label, stream, sessionId } }),
+    live: ({ id } = {}) => request('/live', { query: { id } }),
     rename: ({ id, label } = {}) => request('/label', { method: 'POST', body: { id, label } }),
     importAudio: ({ path, label } = {}) => request('/import', { method: 'POST', body: { path, label } }),
     cancelAll() {
