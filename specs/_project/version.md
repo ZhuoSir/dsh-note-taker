@@ -42,3 +42,12 @@ meeting-page、meeting-console、meeting-workspace-output、meeting-agent-import
 用户「会记入口改图标+文字，走个spec」，版本问句用户选「挂 v1.1.0，新开里程碑」。
 双建完成：`releases/v1.1.0/MILESTONE.md`（状态「进行中」）+ 裸号分支 `1.1.0`（自 `main` @ `dc1f6a6` 切出）。
 首个挂载需求 `specs/20261112_meeting-trigger`（会话入口视觉与卡片收起记忆）。
+
+### 2026-11-11 真机反馈 → CR-01 + 第二个 spec
+
+用户在 v1.1.0 真机上验证新入口，发现四个缺陷（BUG-01~04）：卡片展开时压住输入区导致光标进不去
+（缩小窗口可恢复）、录制中不能对话、切会话或空会话被回收后录音找不回来、录音进程退出后账目永久 running。
+用户指令「都改」，分两路处置：
+- `specs/20261112_meeting-trigger` 开 CR-01（minor，待用户拍板档位）：改 R-05（撤销跨会话展开记忆）、
+  新增 R-10（卡片不得遮挡输入区），新增任务 T-08~T-10
+- 新 spec `specs/20261112_recording-decouple`（挂 v1.1.0，第 2 个需求）：录音与会话解耦 + 中断自愈
