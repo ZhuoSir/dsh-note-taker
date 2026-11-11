@@ -165,7 +165,10 @@ async function sendViaScope(sessions, sessionId, text) {
     await conversation.send(text)
     return { ok: true }
   } catch (error) {
-    return { ok: false, reason: `发送失败：${String(error?.message ?? error).slice(0, 120)}` }
+    const message = String(error?.message ?? error)
+    // 另一个客户端（桌面版 / 网页版）正开着这个会话 → 它持有写句柄
+    if (message.includes('writer-held')) return { ok: false, reason: 'writer-held' }
+    return { ok: false, reason: `发送失败：${message.slice(0, 120)}` }
   }
 }
 
@@ -190,23 +193,17 @@ export async function sendToSession({ sessionId, text } = {}) {
 
   const direct = await sendViaScope(sessions, target, text)
   if (direct.ok) return { ok: true, sessionId: target }
-  if (direct.reason !== 'scope-missing') return { ok: false, reason: direct.reason, sessionId: target }
-
-  // 作用域不在（被面板挤掉了）→ 借一个
-  if (typeof sessions.using === 'function') {
-    try {
-      const result = await sessions.using(target, { source: 'dsh-note-taker' }, async () => {
-        const inner = await sendViaScope(sessions, target, text)
-        return inner
-      })
-      if (result?.ok) return { ok: true, sessionId: target }
-      return { ok: false, reason: result?.reason ?? '借会话作用域后仍无法发送', sessionId: target }
-    } catch (error) {
-      return { ok: false, reason: `借会话作用域失败：${String(error?.message ?? error).slice(0, 120)}`, sessionId: target }
+  if (direct.reason !== 'scope-missing') {
+    if (direct.reason === 'writer-held') {
+      return { ok: false, reason: '另一个客户端正开着这个会话（写锁被占用），可能同时开了桌面版和网页版', sessionId: target }
     }
+    return { ok: false, reason: direct.reason, sessionId: target }
   }
 
-  return { ok: false, reason: `会话 "${target}" 没有对应作用域（宿主也没提供 sessions.using）`, sessionId: target }
+  // 作用域不在，或写句柄被别的客户端占着：
+  // 不要用 sessions.using 去「借」——它会 retain 出写句柄，而 conversation.send 还要再开一个，
+  // 结果是插件自己和自己抢锁（实测报 session/writer-held）。
+  return { ok: false, reason: 'scope-missing', sessionId: target }
 }
 
 /** 剪贴板兜底 */

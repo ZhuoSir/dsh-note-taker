@@ -477,3 +477,33 @@ $s.Speak('大家好，这是一次自动化验证会议。')
 要按 magic `28 b5 2f fd` 切分逐帧解压。命中 `agent/inbox/spliced` + 紧随其后的 `turn/start`，
 才算「消息进去了而且真的开始处理」。
 
+## L-36 「借作用域」和「发消息」各拿一次写句柄 —— 插件自己和自己抢锁
+
+**别这样写**：
+
+```js
+await sessions.using(id, { source }, async () => {
+  await sessions.scope(id).get('conversation').send(text)   // ← 又开一个写句柄
+})
+```
+
+`sessions.using` 内部是 `retain()`（拿到写句柄、open 会话），回调里 `conversation.send`
+**还要再开一个**写句柄，于是报 `session/writer-held: session "…" is already owned by an
+active write handle`——占着的那个人就是自己。
+
+实测：`sessions.manager.get(id)` 返回的会话实例上只有 `open()/openState/observeSubmission*`，
+没有 `send`，所以「先 retain 再手动 send」没有第二条路可走。
+
+结论：要么直接 `sessions.scope(id).get('conversation').send()`（会话已被界面保留时），
+要么老实告诉用户发不了。不要试图自己开一个会话再去发。
+
+## L-37 同一个会话被两个客户端同时打开，写锁会打架
+
+桌面版和 `dsh web` 是两个进程；谁先打开某个会话，谁就握着它的写句柄。
+另一个进程再对同一会话发消息，就会撞 `session/writer-held`。
+
+这次排查里，用户报错的会话 id，正好是我为做 web 端验证而起的宿主所打开过的。
+所以「验证用的宿主别一直开着」也算一条纪律：测完就停，别让它继续占着用户的会话。
+
+排查时先看这条线索：报错里的会话 id 是不是自己起过宿主碰过的那个。
+

@@ -393,9 +393,12 @@ export function QuickPanel({ sessionId, page = false } = {}) {
 
     // 兜底：复制到剪贴板，并说明真实情况
     const copied = await copyText(built.text)
+    const blocked = /写锁|writer-held|正开着这个会话/.test(String(sent.reason))
     setPhase('sent')
     setNotice(copied.ok
-      ? '宿主不支持自动发送，文本已复制到剪贴板，请粘贴到输入框发送'
+      ? (blocked
+        ? '该会话正被另一个客户端占着，文本已复制到剪贴板——打开这个会话粘贴发送即可'
+        : '宿主不支持自动发送，文本已复制到剪贴板，请粘贴到输入框发送')
       : `无法发送也无法复制（${copied.reason}），请手动重试`)
   }, [current, transcript, sessionId])
 
