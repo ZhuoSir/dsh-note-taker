@@ -63,20 +63,20 @@ test('resolveConfig 支持全部环境变量覆盖', () => {
   assert.equal(config.llmModel, 'deepseek-chat')
 })
 
-test('apply 注册六个工具并返回成功', () => {
+test('apply 注册七个工具并返回成功', () => {
   const output = bootPlugin(freshDataRoot())
   const line = output.split('\n').find((item) => item.startsWith('__RESULT__'))
 
   assert.ok(line, `子进程未输出结果行：${output.slice(0, 400)}`)
   const result = JSON.parse(line.slice('__RESULT__'.length))
   assert.equal(result.ok, true)
-  assert.equal(result.names.length, 6)
+  assert.equal(result.names.length, 7)
 })
 
-test('apply 打出「插件启动」与「配置加载」两条日志，工具数为 6', () => {
+test('apply 打出「插件启动」与「配置加载」两条日志，工具数为 7', () => {
   const output = bootPlugin(freshDataRoot())
 
-  assert.match(output, /插件启动.*name=dsh-note-taker.*tools=6/)
+  assert.match(output, /插件启动.*name=dsh-note-taker.*tools=7/)
   assert.match(output, /配置加载.*model=small.*threads=6/)
 })
 

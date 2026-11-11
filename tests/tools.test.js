@@ -43,11 +43,11 @@ function makeTools() {
   return { tools: buildTools({ service }), calls }
 }
 
-test('注册且只注册六个工具，名字精确匹配', () => {
+test('注册且只注册七个工具，名字精确匹配', () => {
   const { tools } = makeTools()
   assert.deepEqual(
     tools.map((tool) => tool.name).sort(),
-    ['meeting_list', 'meeting_minutes', 'meeting_record_start', 'meeting_record_stop', 'meeting_status', 'meeting_transcribe'],
+    ['meeting_import', 'meeting_list', 'meeting_minutes', 'meeting_record_start', 'meeting_record_stop', 'meeting_status', 'meeting_transcribe'],
   )
 })
 
@@ -101,5 +101,54 @@ test('显式传参与布尔值不被吞掉', () => {
   tools.find((tool) => tool.name === 'meeting_transcribe').execute({ meetingId: 'm-9', model: 'small', engine: 'cloud' })
 
   assert.deepEqual(calls[0], ['minutes', { meetingId: 'm-9', force: true }])
-  assert.deepEqual(calls[1], ['transcribe', { meetingId: 'm-9', model: 'small', engine: 'cloud' }])
+  assert.deepEqual(calls[1], ['transcribe', { meetingId: 'm-9', model: 'small', engine: 'cloud', sessionId: undefined, workspaceDir: undefined }])
+})
+
+test('meeting_import 工具：契约完整、超时 45 分钟、参数透传（含默认转写）', async () => {
+  const calls = []
+  const tools = buildTools({
+    service: {
+      importAudio: (args) => { calls.push(args); return { ok: true, meetingId: 'm-1' } },
+    },
+  })
+  const tool = tools.find((item) => item.name === 'meeting_import')
+
+  assert.ok(tool, '工具必须存在')
+  assert.equal(tool.output.type, 'text', '旧宿主需要 type')
+  assert.equal(typeof tool.output.render, 'function', '新宿主需要 render')
+  assert.equal(tool.timeoutMs, 45 * 60 * 1000, '长音频转写需要更长超时')
+  assert.match(tool.description, /outputFile/)
+  assert.match(tool.description, /## 纪要/)
+
+  await tool.execute({ path: 'D:/a.m4a' })
+  assert.deepEqual(calls[0], { fromPath: 'D:/a.m4a', label: '', transcribe: true, sessionId: undefined, workspaceDir: undefined }, '缺省应自动转写')
+
+  await tool.execute({ path: 'D:/b.m4a', label: '周会', transcribe: false })
+  assert.deepEqual(calls[1], { fromPath: 'D:/b.m4a', label: '周会', transcribe: false, sessionId: undefined, workspaceDir: undefined })
+})
+
+test('工具从 exec 取会话信息：cwd 作为产物落点、sessionId 一并透传', async () => {
+  const calls = []
+  const tools = buildTools({
+    service: {
+      importAudio: (args) => { calls.push(['importAudio', args]); return { ok: true } },
+      transcribe: (args) => { calls.push(['transcribe', args]); return { ok: true } },
+    },
+  })
+  const exec = { agent: { session: { id: 'sess-9', header: { cwd: 'D:/work/demo' } } } }
+
+  await tools.find((item) => item.name === 'meeting_import').execute({ path: 'D:/a.m4a' }, exec)
+  assert.equal(calls[0][1].workspaceDir, 'D:/work/demo', '导入应带会话工作目录')
+  assert.equal(calls[0][1].sessionId, 'sess-9')
+
+  await tools.find((item) => item.name === 'meeting_transcribe').execute({ meetingId: 'm-1' }, exec)
+  assert.equal(calls[1][1].workspaceDir, 'D:/work/demo')
+  assert.equal(calls[1][1].sessionId, 'sess-9')
+})
+
+test('没有 exec 时工具仍可调用（不抛错，字段为 undefined）', async () => {
+  const calls = []
+  const tools = buildTools({ service: { importAudio: (args) => { calls.push(args); return { ok: true } } } })
+  assert.doesNotThrow(() => tools.find((item) => item.name === 'meeting_import').execute({ path: 'D:/a.m4a' }))
+  assert.equal(calls[0].workspaceDir, undefined)
 })

@@ -34,3 +34,7 @@ minutes/
 # 本地临时
 *.tmp
 .tmp/
+
+# 会议产物（真实会议内容，永不入库）
+meetings/
+

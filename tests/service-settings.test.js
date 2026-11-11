@@ -97,3 +97,24 @@ test('环境变量优先于默认值，页面配置又优先于环境变量', as
   const caps = await service.capabilities()
   assert.equal(caps.cloud.configured, true)
 })
+
+test('capabilities 反映页面保存的引擎（而不是启动时的环境值）', async () => {
+  const { service, root } = makeService()
+
+  // 启动时 config.engine = local（makeService 里就是 local）
+  assert.equal((await service.capabilities()).engine, 'local')
+
+  await saveSettings({ root, patch: { asr: { engine: 'cloud' } } })
+
+  const caps = await service.capabilities()
+  assert.equal(caps.engine, 'cloud', '应跟随页面配置')
+  assert.equal(caps.engineSource, 'file')
+})
+
+test('capabilities 的本地档位也跟随配置', async () => {
+  const { service, root } = makeService()
+  await saveSettings({ root, patch: { asr: { localModel: 'base' } } })
+
+  const caps = await service.capabilities()
+  assert.equal(caps.local.defaultModel, 'base')
+})
