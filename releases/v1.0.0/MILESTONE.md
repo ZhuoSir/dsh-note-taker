@@ -12,6 +12,7 @@
 | specs/20261110_meeting-console | v1.0.0 | 已合并 | 0 | 0 | 会记工作台：设置页=配置+历史纪要；会话卡片=录音→人确认→交会话生成纪要；T-10 已补验 |
 | specs/20261110_meeting-workspace-output | v1.0.0 | 已合并 | 0 | 0 | 产物写入会话工作区 meetings/，交接改为引用 md 路径；T-08 已补验 |
 | specs/20261110_meeting-agent-import | v1.0.0 | 已合并 | 0 | 0 | 会话驱动导入：新增 meeting_import 工具，音频→转写→产物路径，纪要由 agent 自己读写；5/5 完成 |
+| specs/20261111_streaming-asr | v0.1.0 | 立项中 | 0 | 0 | 流式上传 + 流式 ASR（BL-06）；首件事是 realtime 模型/协议探针 |
 
 ## 纳入缺陷（随版修复批）
 
