@@ -22,6 +22,9 @@ meeting-page、meeting-console、meeting-workspace-output、meeting-agent-import
 2026-11-11 增挂——第 8 个 spec `specs/20261111_desktop-adaptation`（桌面版安装与升级）挂 v1.0.0，
 已以 `b804fe9` 合入 `1.0.0`；7/7 任务完成、12 例单测、全量 344 例通过，用户重启桌面版后真机自测通过。
 
+2026-11-11 M2 冻结——用户「1.0.0走封板流程」：前置检查全过（8/8 spec 已合并、73/73 任务勾选、8 份 completion.md、0 缺陷、CR-01 已合入、无孤儿 spec、工作树干净、分支与远端同为 `7005548`），并删除两个已合并施工分支（`feature/desktop-adaptation`、`feature/streaming-asr`）。MILESTONE 状态转「已冻结」，本版内容封板：新需求默认进下一里程碑。
+下一步 M3 汇总 → M4 发版（均待用户口令）。
+
 ## ⚠ 悬空账（已 tag 未合 main——下次起新版前必须处置）
 
 | 分支 | 版本 | tag 日 | 基于 | 状态 |

@@ -1,6 +1,6 @@
 # 里程碑 v1.0.0
 
-> 状态: 进行中 | 目标日期: 未定 | 负责人: KypCa
+> 状态: 已冻结 | 目标日期: 未定 | 负责人: KypCa
 
 ## 纳入需求
 
@@ -25,9 +25,29 @@
 
 - 待 M3 汇总填写
 
+## 冻结记录（M2，2026-11-11）
+
+触发: 用户「1.0.0走封板流程」。前置检查逐项按事实重算（脚本 `.tmp/m2-audit.mjs`，不靠记忆）：
+
+| 检查项 | 判据 | 结果 |
+|---|---|---|
+| 表内 spec 全部已合并 | MILESTONE 纳入需求表状态列 | ✓ 8/8 = 已合并 |
+| 任务全勾 | 各 `tasks.md` 的 `- [x] T-` / `- [ ] T-` 计数 | ✓ 73 勾 / 0 未勾 |
+| 证据齐 | 各 spec `completion.md` 存在 | ✓ 8/8 |
+| P0/P1 缺陷达已验证 | `specs/_project/bugs.md` 行数 | ✓ 0 行（本版无登记缺陷） |
+| 账证初对 | 本版提交 `Bug:` footer ↔ bugs.md | ✓ 无 Bug footer，账证一致 |
+| 无孤儿 spec | 各 spec changelog「挂载:」行 | ✓ 8/8 指向 v1.0.0 |
+| 无未收口 CR | `specs/*/changes/*.md` 状态 | ✓ 1 份（CR-01 http-asr）已合入 |
+| 工作树干净 | `git status --porcelain` | ✓ 空 |
+| 版本分支与远端一致 | `git log -1 1.0.0` / `origin/1.0.0` | ✓ 均为 `7005548` |
+| 施工分支收尾 | 已合并的 `feature/*` | ✓ 删除 `feature/desktop-adaptation`(d1b58e6)、`feature/streaming-asr`(70907ba)，内容均在 `1.0.0` 历史内 |
+
+冻结结论: **v1.0.0 内容封板**——此后新需求默认进下一里程碑；要挤进本版必须解锁重走 M2 并记录。
+本版未产生 SQL 与配置变更（8 个 spec 均无 `artifacts.md` 的 SQL/配置行），M3 汇总的 SQL/配置两节预计为空。
+
 ## 汇总进度
 
-- [ ] 全部 spec 已合并（M2 冻结前置；以 git 合并记录为准）
+- [x] 全部 spec 已合并（M2 冻结前置；以 git 合并记录为准）
 - [ ] SQL 汇总编号 + rollback 配对（sql/ 件数 == artifacts 行数）
 - [ ] 配置汇总 config/changes.md（覆盖全部 artifacts 配置行）
 - [ ] RELEASE-NOTES.md（「包含需求」覆盖纳入表）
