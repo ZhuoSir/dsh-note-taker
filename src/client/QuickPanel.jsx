@@ -38,6 +38,12 @@ const styles = {
     background: tone === 'success' ? theme.success : theme.textMuted,
   }),
   timing: { color: theme.textSecondary, fontVariantNumeric: 'tabular-nums' },
+  // 卡片内确认条（替代 window.confirm）
+  consent: {
+    display: 'flex', flexDirection: 'column', gap: 6, padding: 8, borderRadius: 8,
+    border: `1px solid ${theme.accentBorder}`, background: theme.accentBg,
+  },
+  consentText: { color: theme.text, fontSize: 11, lineHeight: 1.6 },
   panel: {
     // CR-01：间距改用 marginBottom，bottom 只表达「贴着输入行上沿」，不再把偏移量算进锚点
     position: 'absolute', bottom: '100%', right: 0, zIndex: 40,
@@ -98,9 +104,31 @@ export function QuickPanel({ sessionId } = {}) {
   const liveKeyRef = useRef('')
   const liveChangedAtRef = useRef(0)
 
-  const api = useMemo(() => createApi({
-    confirmCloud: (text) => (typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm(text) : false),
+  /**
+   * 卡片内确认（替代 window.confirm）。
+   *
+   * 教训：Electron 里原生 confirm 会打断渲染进程的输入法编辑上下文——弹过之后宿主输入框
+   * 收得到 keydown 却输不进字，要到窗口缩放才恢复。这里改成页面内的确认条，
+   * 不再让宿主弹原生对话框。
+   */
+  const [consent, setConsent] = useState(null)
+  const consentResolveRef = useRef(null)
+
+  const askConsent = useCallback((text) => new Promise((resolve) => {
+    consentResolveRef.current = resolve
+    setConsent({ text })
   }), [])
+
+  const answerConsent = useCallback((granted) => {
+    const resolve = consentResolveRef.current
+    consentResolveRef.current = null
+    setConsent(null)
+    if (resolve) resolve(granted)
+  }, [])
+
+  const api = useMemo(() => createApi({
+    confirmCloud: (text) => askConsent(text),
+  }), [askConsent])
   const caps = useMemo(() => capabilitiesFrom(health), [health])
 
   const refresh = useCallback(async () => {
@@ -125,7 +153,7 @@ export function QuickPanel({ sessionId } = {}) {
   // 点面板外部或按 Esc 收起（R-04）：两个监听合成一个 effect，Esc 不阻止默认行为
   useEffect(() => {
     if (!open) return undefined
-    const close = () => { setOpen(false) }
+    const close = () => { if (consentResolveRef.current) answerConsent(false); setOpen(false) }
     const onDown = (event) => { if (rootRef.current && !rootRef.current.contains(event.target)) close() }
     const onKey = (event) => { if (event.key === 'Escape') close() }
     if (typeof document !== 'undefined') {
@@ -194,9 +222,7 @@ export function QuickPanel({ sessionId } = {}) {
     // 流式开启且本次会话还没确认过 → 先确认「录音期间持续上传音频」（R-08）
     const wantStream = caps.streamReady === true
     if (wantStream && needsStreamConsent({ streamEnabled: true, acknowledged: streamAckRef.current })) {
-      const granted = typeof window !== 'undefined' && typeof window.confirm === 'function'
-        ? window.confirm(STREAM_CONSENT_TEXT) === true
-        : false
+      const granted = await askConsent(STREAM_CONSENT_TEXT)
       if (!granted) {
         setPhase('idle')
         setNotice('已取消：未确认录音期间上传音频')
@@ -209,7 +235,7 @@ export function QuickPanel({ sessionId } = {}) {
     if (result.ok === false) { setPhase('error'); setError(errorText(result.code, result.detail)); return }
     setCurrent({ meetingId: result.meetingId, label: '', durationSec: null, streaming: result.stream?.stream === true })
     setPhase('recording')
-  }, [api, caps.streamReady, sessionId])
+  }, [api, askConsent, caps.streamReady, sessionId])
 
   const awaitTranscript = useCallback(async (meetingId, durationSec) => {
     const deadline = Date.now() + TRANSCRIBE_TIMEOUT_MS
@@ -365,6 +391,15 @@ export function QuickPanel({ sessionId } = {}) {
       error ? createElement('div', { style: styles.error }, error) : null,
       refreshError ? createElement('div', { style: styles.muted }, refreshError) : null,
       notice ? createElement('div', { style: styles.ok }, notice) : null,
+
+      // 卡片内确认条（替代 window.confirm：原生弹窗会打断宿主输入法的编辑上下文）
+      consent ? createElement('div', { style: styles.consent },
+        createElement('div', { style: styles.consentText }, consent.text),
+        createElement('div', { style: styles.row },
+          createElement('button', { type: 'button', style: styles.btnPrimary, onClick: () => answerConsent(true) }, '继续'),
+          createElement('button', { type: 'button', style: styles.btn, onClick: () => answerConsent(false) }, '取消'),
+        ),
+      ) : null,
 
       createElement('div', { style: styles.row },
         recording

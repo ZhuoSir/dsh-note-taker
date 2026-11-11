@@ -84,3 +84,13 @@ T-07 需用户在真机上看观感、施工分支 eature/meeting-trigger 自 1
 - T-10：渲染断言新增 `"bottom":"100%"`、`"alignSelf":"stretch"`、`"marginBottom":8`、
   否定 `calc(100% + 8px)`；收起态用例改为空 overrides（默认收起）
 - 真实输出：`构建校验: lib/client.js 可重复构建（97a486af92fa）`，`tests 347 / pass 347 / fail 0`
+
+### CR-01 补记：原生 confirm 换卡片内确认（2026-11-11）
+
+- 触发：T-08/T-09 修完后用户真机复验仍不能输入；控制台证据显示**无遮挡、焦点正常、事件未拦**，
+  且「卡片展开但不录音时能输入」，只在录音开始后失效
+- 结论：开始录音时的原生 `window.confirm` 打断了输入法编辑上下文（见 lessons L-26）
+- 改法：`confirmCloud` 与流式确认都改为卡片内确认条（`askConsent`/`answerConsent`）；
+  卡片被收起时按「取消」收场，避免 `startRecord` 永久挂起；删掉全部 `window.confirm` 调用
+- 真实输出：`构建校验: lib/client.js 可重复构建（33530032a71d）`，`tests 347 / pass 347 / fail 0`
+
