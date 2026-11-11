@@ -1,0 +1,11 @@
+# 生成物：不做换行符转换，否则 Windows 检出后哈希与构建结果不一致（verify 的构建校验会误报）
+lib/client.js -text
+
+# 源码统一 LF
+*.js   text eol=lf
+*.jsx  text eol=lf
+*.mjs  text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.py   text eol=lf
+*.yml  text eol=lf

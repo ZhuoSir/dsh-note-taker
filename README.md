@@ -51,7 +51,43 @@ dsh web --port 8099 --no-open
 1. **设置 → 会记**：能打开，看到「配置 / 历史纪要」两个 tab
 2. **会话输入框右侧**：有「会记」按钮
 
-> 桌面版（Electron）的 `desktop` profile 由应用独占，CLI 不能改；请在应用内安装或使用可 CLI 管理的 profile。
+> 桌面版（Electron）的 `desktop` profile 由应用独占，`dsh plugin --profile desktop …` 会被直接拒绝
+> （`profile "desktop" is managed exclusively by the Electron application`）。装桌面版请用下一节的三条命令。
+
+### 装进桌面版（Electron）
+
+```powershell
+# 装（幂等；装前自动备份 profile 清单，失败自动回滚）
+npm run install:desktop
+
+# 只读自检：装没装、链接对不对、跑的是哪份代码、Key 从哪来
+npm run verify:desktop
+
+# 卸载（摘接线；录音与转写数据默认保留）
+npm run uninstall:desktop
+```
+
+要点：
+
+- **先退出桌面版再装/卸**。安装器检测到应用在跑会直接拒绝（`--force` 可强制，但不建议——
+  边跑边改 `node_modules` 有风险）。装完**重启应用**才激活。
+- 装的是**链接**（`link:` + junction），所以之后 `git pull` / 切分支后重启即生效，不用重装。
+- 卸载默认**不动** `~/.dsh/note-taker`（录音、产物、配置都是你的东西）；要清就手工删该目录。
+- 桌面版从图形界面启动，终端里的环境变量传不进去。**云端 Key 建议直接在设置页填写**；
+  `verify:desktop` 会报告 `Key来源=page|env|none`（只报来源，不打印 Key 值）。
+- 其它平台路径不一样时用 `--profile-dir` 指定，或用环境变量 `NOTE_TAKER_DESKTOP_PROFILE`。
+
+`verify:desktop` 的五项自检，任一 `✗` 都说明「装了但可能激活不了」，退出码 3：
+
+| 自检项 | 含义 |
+|---|---|
+| 依赖条目 | `package.json` 的 `dependencies` 是该仓库的 `link:` |
+| bundles 条目 | `dsh.profile.bundles` 里排在最后一项 |
+| node_modules 链接 | 链接存在且 realpath 指向本仓库（不是别的副本） |
+| lockfile 条目 | `pnpm-lock.yaml` 含该 `link:` 依赖（pnpm 才不会把它当多余项清掉） |
+| 可解析出宿主导出 | 从 profile 目录 `import` 能拿到 `apply/inject/name`（即宿主真能加载它，L-10 的坑） |
+
+退出码：`0` 成功 / `2` 用法或前置不满足（如应用在跑）/ `3` 安装或校验失败。
 
 ## 快速开始
 
@@ -142,12 +178,35 @@ agent 会调 `meeting_import`，你拿到的是产物文件路径，它自己读
 | `NOTE_TAKER_ASR_TERMS` | — | 领域词表（与分人互斥，见下） |
 | `NOTE_TAKER_ASR_DIARIZATION` | 关 | 设 `1` 开启说话人分离 |
 | `NOTE_TAKER_ASR_CHUNK_SECONDS` | `300` | 长音频分片秒数 |
+| `NOTE_TAKER_STREAM_ENABLED` | 关 | 设 `1` 开启流式识别（也可在设置页开） |
+| `NOTE_TAKER_STREAM_MODEL` | `qwen3-asr-flash-realtime` | 流式模型（必须是支持实时识别的型号） |
 | `NOTE_TAKER_MODEL_DIR` | `<数据目录>/models` | 本机模型目录 |
 
 ### 说话人分离的两个事实
 
 1. **只有 `qwen-audio-3.1-asr-flash` 支持**。`3.0` 会静默忽略该参数（`speaker_id` 恒为 `null`）。
 2. **与词表上下文互斥**：开启分人时不再发送 `input_text` 词表——实测带着词表请求，`speaker_id` 会全部退化成 `-1`。代码里以分人优先。
+
+## 流式识别
+
+默认**关闭**（`asr.stream.enabled: false`），关闭时行为与之前完全一致：录完再整段识别。开启后录音期间就持续把音频实时送去识别，卡片上边录边出字，停录即出结果，不再等一轮整段识别。
+
+开启方式（二选一）：
+
+| 位置 | 字段 |
+|---|---|
+| 设置 → 会记 → 流式识别 | 勾选「录音期间实时出字」，可改流式模型名 |
+| 环境变量 | `NOTE_TAKER_STREAM_ENABLED=1`、`NOTE_TAKER_STREAM_MODEL`（缺省 `qwen3-asr-flash-realtime`） |
+
+要点：
+
+- **只认云端 Key**：流式走 DashScope 实时接口（`wss://…/api-ws/v1/realtime`），需要 `DASHSCOPE_API_KEY`；没配时「开始录音」会直接拒绝并说明，不会录出一场空会议。
+- **隐私**：开启后，录音期间音频是**持续上传**到阿里云百炼的（不是录完传一次）。首次开始录音会单独确认一次，本次会话内不再重复弹。
+- **延迟**：说完约 0.3 秒出中间结果，静默约 0.8–1 秒定稿；停录到拿到完整结果通常 1 秒内（服务端 10 秒不响应则按超时收尾，末尾可能截断）。
+- **时间戳是本地推的**：实时事件里没有时间戳，显示的段落时刻由「已推音频字节数」换算，误差约 ±0.3 秒，别当秒级对时用。
+- **降级**：连不上 / 中途断了两次 → 自动改用停录后的整段识别，音频不丢、产物结构不变；卡片上会明确写「流式已降级」。
+- **计费**：按上传的音频时长计费（与整段识别同一套模型计费口径），开会时长 = 上传时长。
+- **不进产物的东西**：中间结果只用于屏幕显示，落盘的只有定稿段落；旁路 PCM 收尾即删。
 
 ## 产物与数据
 
@@ -199,6 +258,15 @@ agent 会调 `meeting_import`，你拿到的是产物文件路径，它自己读
 本机：这个里面的变更的时候可能会需要用啥样的 比如说 我们战队是行业的 把它给限量化
 云端：这个里面变更的时候可能需要大量的，比如说我们针对行业的把它给现场化，或者说把它变成流程化的这么一个方式
 ```
+
+流式识别（`qwen3-asr-flash-realtime`，2026-11-11 本机实测）：
+
+| 指标 | 实测 |
+|---|---|
+| 建连 | 0.24 s |
+| 首个中间结果（说话后） | 0.91 s |
+| 停录到拿到完整转写 | 0.90–0.99 s |
+| 20 秒语音的定稿段数 | 2–3 段（服务端按语义断句） |
 
 ## 开发
 

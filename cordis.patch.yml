@@ -1,0 +1,6 @@
+# dsh-note-taker bundle patch：把会记插入 profile 的插件名册。
+# 宿主侧（exports "."）注册 meeting_* 工具并调用已配置模型生成纪要；
+# 本版没有浏览器侧（页面属 BL-01），因此 package.json 不声明 dsh.client。
+- insert:
+    - id: note-taker
+      name: 'dsh-note-taker'

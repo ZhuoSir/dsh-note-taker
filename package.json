@@ -20,7 +20,10 @@
   "scripts": {
     "build:client": "node scripts/build-client.mjs",
     "verify": "node scripts/verify.mjs",
-    "test": "node scripts/verify.mjs --tests-only"
+    "test": "node scripts/verify.mjs --tests-only",
+    "install:desktop": "node scripts/desktop.mjs install",
+    "uninstall:desktop": "node scripts/desktop.mjs uninstall",
+    "verify:desktop": "node scripts/desktop.mjs verify"
   },
   "keywords": [
     "dsh",
@@ -80,5 +83,8 @@
   "private": true,
   "devDependencies": {
     "esbuild": "^0.28.2"
+  },
+  "dependencies": {
+    "ws": "^8.22.2"
   }
 }

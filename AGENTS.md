@@ -25,10 +25,10 @@ docs/                        方案、设计等长期文档
 
 ## 项目特有约束
 
-- **代码不在本仓库**：插件代码位于 `D:\workspace\my_workspace\ai_dsh_test\dsh-note-taker`
-  （用户 2026-11-10 决定「只建机制，代码不动」）。本仓库只承载 spec 文档与台账。
-  首次 Implement 前必须先解决代码侧无版本控制的问题，见
-  `specs/_project/profile.md` §已知技术债。
+- **代码建在本仓库**：2026-11-10 用户决定「重建，旧的不动」。骨架在本仓库目录下新建
+  （宿主侧 / 页面侧 / Python sidecar 三层），旧脚手架
+  `D:\workspace\my_workspace\ai_dsh_test\dsh-note-taker` 归档不动、仅作参考，
+  不直接复制、不纳入本仓库版本控制。
 - **运行数据永不入库**：录音、转写、模型（`note-taker-data/`、`*.wav`、`*.onnx`）。
 - **方案基线**：`docs/dsh-note-taker-方案.md`（M0~M4 里程碑与关键决策的出处）。
 
