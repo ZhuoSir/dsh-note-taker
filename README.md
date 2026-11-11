@@ -51,7 +51,43 @@ dsh web --port 8099 --no-open
 1. **设置 → 会记**：能打开，看到「配置 / 历史纪要」两个 tab
 2. **会话输入框右侧**：有「会记」按钮
 
-> 桌面版（Electron）的 `desktop` profile 由应用独占，CLI 不能改；请在应用内安装或使用可 CLI 管理的 profile。
+> 桌面版（Electron）的 `desktop` profile 由应用独占，`dsh plugin --profile desktop …` 会被直接拒绝
+> （`profile "desktop" is managed exclusively by the Electron application`）。装桌面版请用下一节的三条命令。
+
+### 装进桌面版（Electron）
+
+```powershell
+# 装（幂等；装前自动备份 profile 清单，失败自动回滚）
+npm run install:desktop
+
+# 只读自检：装没装、链接对不对、跑的是哪份代码、Key 从哪来
+npm run verify:desktop
+
+# 卸载（摘接线；录音与转写数据默认保留）
+npm run uninstall:desktop
+```
+
+要点：
+
+- **先退出桌面版再装/卸**。安装器检测到应用在跑会直接拒绝（`--force` 可强制，但不建议——
+  边跑边改 `node_modules` 有风险）。装完**重启应用**才激活。
+- 装的是**链接**（`link:` + junction），所以之后 `git pull` / 切分支后重启即生效，不用重装。
+- 卸载默认**不动** `~/.dsh/note-taker`（录音、产物、配置都是你的东西）；要清就手工删该目录。
+- 桌面版从图形界面启动，终端里的环境变量传不进去。**云端 Key 建议直接在设置页填写**；
+  `verify:desktop` 会报告 `Key来源=page|env|none`（只报来源，不打印 Key 值）。
+- 其它平台路径不一样时用 `--profile-dir` 指定，或用环境变量 `NOTE_TAKER_DESKTOP_PROFILE`。
+
+`verify:desktop` 的五项自检，任一 `✗` 都说明「装了但可能激活不了」，退出码 3：
+
+| 自检项 | 含义 |
+|---|---|
+| 依赖条目 | `package.json` 的 `dependencies` 是该仓库的 `link:` |
+| bundles 条目 | `dsh.profile.bundles` 里排在最后一项 |
+| node_modules 链接 | 链接存在且 realpath 指向本仓库（不是别的副本） |
+| lockfile 条目 | `pnpm-lock.yaml` 含该 `link:` 依赖（pnpm 才不会把它当多余项清掉） |
+| 可解析出宿主导出 | 从 profile 目录 `import` 能拿到 `apply/inject/name`（即宿主真能加载它，L-10 的坑） |
+
+退出码：`0` 成功 / `2` 用法或前置不满足（如应用在跑）/ `3` 安装或校验失败。
 
 ## 快速开始
 
