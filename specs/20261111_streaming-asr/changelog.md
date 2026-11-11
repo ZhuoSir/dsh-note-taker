@@ -39,5 +39,19 @@
     `GET /note-taker/health` 200 且带 `stream:{enabled:false,available:false,reason:"missing_key",model:"qwen3-asr-flash-realtime"}`；
     `GET /note-taker/live?id=…` 200 idle 快照；`GET /note-taker/config` 200 且含 `asr.stream`；
     `live?id=../etc/passwd` → 400 `E_STATE`；`POST /record {stream:true}` → 400 `E_DEP`（缺 Key 前置拒绝，`/list` 仍为空）
-  - **未完成**：真实云端 + 真实麦克风的 20 秒流式录音（字幕 3 秒内出现 / 停录 10 秒内出结果）——
-    本机没有 `DASHSCOPE_API_KEY`，无法由 agent 侧代跑；T-09 保持未勾，待用户补验
+  - **T-09 真机补验**（2026-11-11 10:32–10:35，用户提供云端 Key，`dsh web --port 8099` + web profile，真实麦克风）：
+    - 云端链路独立验证（20 秒真实语音 PCM 按实时节奏推流，`.tmp/cloud-stream-verify.mjs`）：
+      建连 **0.24s**；首个中间结果 **+0.91s**（R-01/R-02 达标）；按语义定稿 3 段；停录收尾 **0.90s**
+      未超时（R-04 达标）；全文 115 字中文正确，时间戳 0.4–30.8s（本地推导）
+    - 第一轮（用户尚未说话，采到静音）：字幕 0 字 → 停录后**自动降级**到整段识别（R-07）→
+      云端回 `ASR_RESPONSE_HAVE_NO_WORDS` → `transcribe=failed`；音频 `recordings/<id>.wav` 完好保留，
+      全程无崩溃。日志出现「流式服务返回错误」→「收尾完成 finals=0」→「降级为停录后整段识别」
+    - 第二轮（用户对着麦克风说了约 25 秒）：首次出字 **+7.75s**（含用户起说延迟，字幕延迟本身见上面云端直推的 0.91s）；
+      停录路由耗时 **0.99s**，`stream.used=true / segments=4 / chars=56 / timedOut=false / fallback=null`；
+      状态 `record=done, transcribe=done, engine=cloud, stream=true`；产物
+      `transcripts/<id>.md`（`[00:00:06]` 起共 4 段）+ `<id>.json`（`mode=stream`）；旁路 PCM 收尾后已删
+    - 日志顺序齐全：`流式会话已建立` → `首帧已发送` → `推流进度` → `收尾完成`，成功轮无 ERROR；
+      全程日志不含 Key（R-10）
+    - 说明：本机扬声器播放被试麦克风拾取时 RMS≈0（AEC/远场），所以「自己放音给自己听」这条自动化路线不可行，
+      必须真人说话才能验；这一点不影响插件行为
+- **T-09 收官**：9/9 任务完成；`npm run verify` 构建可重复 + 331/331 全绿
