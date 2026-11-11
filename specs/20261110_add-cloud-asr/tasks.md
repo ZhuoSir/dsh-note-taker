@@ -40,14 +40,14 @@
 
 ## 3. 接入
 
-- [ ] T-06 在 service 里按引擎分派并落盘
+- [x] T-06 在 service 里按引擎分派并落盘
   关联: R-01, R-09
   依赖: T-02, T-04
   验证方式: `node --test tests/service-cloud.test.js`——`engine=local` 时行为与既有完全一致（复用现有 service 用例回归）；`engine=cloud` 时写入 `transcripts/<id>.md|json`，json 键集合 = 本地键集合 + `engine`；云端失败时 `status.transcribe='failed'`、`errors.transcribe` 有原因，且既有成功产物 sha256 不变；非法 `engine` → `E_STATE` + `detail.field='engine'`
   日志断言: 每次分派出现「引擎分派」含 meetingId 与 engine；云端失败出现 ERROR 含 code
   验收标准: 六类用例全绿；既有 `tests/service.test.js` 无一改动仍全绿
 
-- [ ] T-07 工具参数与云端外发告知
+- [x] T-07 工具参数与云端外发告知
   关联: R-01, R-06, R-08
   依赖: T-06
   验证方式: `node --test tests/tools.test.js` 增补——`meeting_transcribe` 接受 `engine` 并透传；不传 `engine` 时调用参数与既有断言一致（回归）；返回信封含 `engine` 字段。`tests/service-cloud.test.js` 增补：首次云端调用返回值含外发提示文案（含「阿里云百炼」），第二次不再出现
@@ -62,7 +62,7 @@
   验证方式: 人工核对 README 新章节包含：`DASHSCOPE_API_KEY` 配置方式、两个候选模型名、两套域名与 Workspace ID 说明、**「云端按实时速率，47 分钟音频约 47 分钟」的耗时预期**、倍速参数、失败时不会自动回退本地
   验收标准: 上述六项齐全；不出现真实密钥样例
 
-- [ ] T-09 真实云端调用验证
+- [x] T-09 真实云端调用验证 [作废 CR-01 v1.1.0：由 T-14 替代]
   关联: R-02, R-07
   依赖: T-06, T-07
   验证方式: 设置 `DASHSCOPE_API_KEY` 后，用真实 m4a 的前 2 分钟跑 `engine=cloud`，记录：实际模型名、段数、字数、耗时与 rtf、usage.duration，并把云端与本地（small）的同一段转写并排贴进 completion.md；确认 `parse.js` 能解析云端产物
