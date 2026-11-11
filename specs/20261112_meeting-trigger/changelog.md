@@ -94,3 +94,34 @@ T-07 需用户在真机上看观感、施工分支 eature/meeting-trigger 自 1
   卡片被收起时按「取消」收场，避免 `startRecord` 永久挂起；删掉全部 `window.confirm` 调用
 - 真实输出：`构建校验: lib/client.js 可重复构建（33530032a71d）`，`tests 347 / pass 347 / fail 0`
 
+## v0.3.0（2026-11-11）CR-02 确认人: 陈卓
+
+### 触发
+
+用户真机反馈原话：「录制毕竟是一个全局的事情，把它放到工作区上面，插件自动化任务那里」，
+并附截图指明侧栏 `新会话 / 插件 / 自动化任务 / 上下文观察` 那一排。
+
+### 拍板
+
+用户：「继续做」——CR-02 档位 minor，§S/§P/§T 一并确认。
+
+### R 变更
+
+- 改 R-01（入口位置 → 侧栏 `sidebar.panellist`，order 30）、R-03（计时位置）、R-04（页面进出）、
+  R-06（可访问性由宿主行承担）
+- 作废 R-05（不再有卡片）、R-10（遮挡在结构上不可能发生）
+- 增 R-11 全局入口、R-12 单一入口、R-13 会记页面、R-14 全局录音状态
+
+### 实现
+
+- 宿主：`recordState()` + `GET /note-taker/record`，含进程意外退出的自愈
+- 客户端：新增 `recordState.js`（共享订阅 + 单轮询 + 本地补秒）、`MeetingPanel.jsx`（页面壳）、
+  `RecordIcon.jsx`（侧栏图标，展开态带计时）；`QuickPanel` 支持 `page` 模式
+- 注册点：删 `conversation.input.right`，增 `main` 与 `sidebar.panellist`
+- 真实输出：`构建校验: lib/client.js 可重复构建（ce449cf42770）`，`tests 349 / pass 349 / fail 0`
+
+### 缺陷
+
+- BUG-02（切会话丢录音）：结构性解决——控制点不再属于会话
+- BUG-01/BUG-03（输入框被压/输入法被打断）：入口离开输入区，且原生 confirm 已换成页面内确认条
+

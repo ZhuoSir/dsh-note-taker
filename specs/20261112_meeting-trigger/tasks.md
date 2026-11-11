@@ -1,6 +1,7 @@
 # 任务：meeting-trigger
 
-> 版本: v0.2.0 | 状态: 已确认 | 更新: 2026-11-11 | 确认人: 陈卓 | 确认日期: 2026-11-11
+> 版本: v0.3.0 | 状态: 已确认 | 更新: 2026-11-11 | 确认人: 陈卓 | 确认日期: 2026-11-11
+> 变更: CR-02（新增 T-11~T-15，入口搬到侧栏）
 > 变更: CR-01（新增 T-08~T-10；T-03 记忆部分回退、T-04 拆分到 T-10）
 > 需求: `requirements.md` v0.1.0（已确认）| 方案: `plan.md` v0.1.0（已确认）
 > 施工分支: `feature/meeting-trigger`（自 `1.1.0` 切出，完成后 `--no-ff` 合回）
@@ -13,6 +14,10 @@
 | R-02 状态色彩 | T-01, T-02 |
 | R-03 录制计时 | T-01, T-02 |
 | R-04 打开收起 | T-03 |
+| R-11 全局入口（CR-02） | T-13 |
+| R-12 单一入口（CR-02） | T-14 |
+| R-13 会记页面（CR-02） | T-12, T-13 |
+| R-14 全局录音状态（CR-02） | T-11 |
 | R-05 收起记忆 | T-03 |
 | R-06 可访问性 | T-02, T-03 |
 | R-07 功能不回归 | T-04 |
@@ -121,7 +126,7 @@ T-01 → T-02 → T-03 → T-04 → T-05 → T-07
   验证方式: `node --test tests/page-logic.test.js` 贴输出（应回到 14 例）；`grep -r "panel-open" src/` 无命中。
   日志断言: 无
 
-- [ ] T-10 断言改写与真机复验（CR-01 / R-10 / S-08）— 断言已改并全绿（347 例），真机待用户
+- [x] T-10 断言改写与真机复验（CR-01 / R-10 / S-08）[断言全绿；真机「录制中可打字」由用户 2026-11-11 确认]
   依赖: T-08, T-09 | 处置: 新增（承接 T-04/T-07）
   验收标准: `page-render` 收起态用例改写成「默认收起」；新增断言「卡片展开时 panel 不进入输入行」
   （`"bottom":"100%"`）；真机：卡片展开、录制中直接点输入框能打字并发送。
@@ -134,4 +139,32 @@ T-01 → T-02 → T-03 → T-04 → T-05 → T-07
 T-08 ─┐
       ├→ T-10 →（真机复验 → completion）
 T-09 ─┘
+```
+
+## CR-02 任务（2026-11-11）
+
+- [x] T-11 宿主 `recordState()` + `GET /record`（CR-02 / R-14）
+  证据: `lib/service.js` 新增 `recordState()`（含 `child.exitCode` 自愈）；`lib/routes.js` 的 `/record` 支持 GET
+
+- [x] T-12 `QuickPanel` 支持页面模式（CR-02 / R-13）
+  证据: 新增 `page` 参数；页面态 `styles.pageRoot/pagePanel`，不再有绝对定位浮层与入口按钮
+
+- [x] T-13 注册 `main` + `sidebar.panellist` + 侧栏图标（CR-02 / R-11）
+  证据: `src/client/index.jsx` 注册 `main`（key `meeting-panel`）与 `sidebar.panellist`（order 30）；
+  新增 `MeetingPanel.jsx`、`RecordIcon.jsx`、`recordState.js`
+
+- [x] T-14 删除输入框入口并重写渲染测试（CR-02 / R-12）
+  证据: `conversation.input.right` 注册已删除；`page-render` 增加注册表断言（id 与 key 一致、order 30、
+  不再有 input.right）；`page-live` 改用模块导出
+
+- [ ] T-15 真机验证（CR-02 / S-09 / S-10）
+  验收标准: 侧栏出现第 4 行「会记」；点击进入页面；录制中切会话图标仍是绿点 + 计时；无会话也能录音
+  验证方式: 用户原话确认
+
+## 依赖图（CR-02 段）
+
+```
+T-11 ─┐
+T-12 ─┼→ T-13 → T-14 → T-15（真机）
+      ┘
 ```

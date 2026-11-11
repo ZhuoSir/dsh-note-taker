@@ -1,6 +1,7 @@
 # 技术方案：meeting-trigger
 
-> 版本: v0.2.0 | 状态: 已确认 | 更新: 2026-11-11 | 确认人: 陈卓 | 确认日期: 2026-11-11
+> 版本: v0.3.0 | 状态: 已确认 | 更新: 2026-11-11 | 确认人: 陈卓 | 确认日期: 2026-11-11
+> 变更: CR-02（入口搬到侧栏 + 全局页面 + 全局录音状态）
 > 变更: CR-01（卡片定位与开合记忆，见 `changes/CR-01_panel-blocks-input.md`）
 > 需求: `requirements.md` v0.1.0（已确认，陈卓 2026-11-12）
 
@@ -125,6 +126,39 @@ panel: {
 `close()` 与 toggle 不再写存储。理由：持久化让展开态跨会话常开，是本次「所有会话都打不了字」的放大器，
 且用户明确要求默认收起。
 
+### 2.3c 入口搬到侧栏全局面板行（CR-02 / R-11 / R-12 / R-13）
+
+作用域错配：入口原来挂在 `conversation.input.right`（session 作用域），录音却是宿主级行为，
+于是切会话就丢控制点。宿主为这件事准备了 root 作用域的 `sidebar.panellist`。
+
+```js
+const PANEL_ID = 'meeting-panel'
+// 页面：必须与侧栏 id 同 key
+ctx.slots.inject('main', () => ctx.slots.register(
+  { name: 'main', key: PANEL_ID, inject: () => ({ close }) }, MeetingPanel))
+// 侧栏：order 30 → 插件(0) / 自动化任务(10) / 上下文观察(20) 之后，工作区标题之上
+ctx.slots.inject('sidebar.panellist', () => ctx.slots.register(
+  { name: 'sidebar.panellist', id: PANEL_ID, order: 30, label: '会记' }, RecordIcon))
+```
+
+坑核对：
+
+- `id` 与 `main.key` 不一致 → 点击抛错并保留当前选中态（宿主原文）
+- 图标 props 只有 `{ size, active }`，展开态 16 / 折叠态 18；折叠态不能塞文字
+- `label` 在 `syncPanels` 时求值（槽位订阅 + 语言切换），**不会随录音状态变化** →
+  计时必须画进图标组件（组件自己订阅状态），不能指望 label 动态
+
+### 2.3d 全局录音状态（CR-02 / R-14）
+
+```js
+// GET /note-taker/record → { running, meetingId, label, startedAt, seconds, streaming, interrupted? }
+```
+
+- 客户端 `recordState.js`：模块级共享订阅 + 单轮询（3s），只有订阅者存在时才轮询
+- 本地补秒：两次轮询之间用 `startedAt` 推算，避免计时 3 秒一跳
+- 自愈：`child.exitCode` 已是数字但状态仍挂着 → 就地收尾为 `failed` 并返回 `interrupted`，
+  避免「永久 running」挡住下一次录音（BUG-04）
+
 ### 2.4 主题安全（R-08）
 
 只用 `theme.textMuted`、`theme.success`、`theme.textSecondary` 三个既有令牌，不新增常量、不写 `#xxxxxx`。
@@ -193,4 +227,9 @@ panel: {
 | T-07 | 真机验证 | 由 T-10 重做 |
 | T-08 | 卡片锚点改为输入行上沿、不遮挡（CR-01） | 待做 |
 | T-09 | 撤销跨会话开合记忆（CR-01） | 待做 |
-| T-10 | 断言改写 + 真机复验「录制中可打字」（CR-01） | 待做 |
+| T-10 | 断言改写 + 真机复验「录制中可打字」（CR-01） | 已完成 |
+| T-11 | 宿主 `recordState()` + `GET /record`（CR-02） | 已完成 |
+| T-12 | `QuickPanel` 支持页面模式（CR-02） | 已完成 |
+| T-13 | 注册 `main` + `sidebar.panellist` + 侧栏图标（CR-02） | 已完成 |
+| T-14 | 删除输入框入口并重写渲染测试（CR-02） | 已完成 |
+| T-15 | 真机验证侧栏入口与跨会话停录（CR-02） | 待用户 |

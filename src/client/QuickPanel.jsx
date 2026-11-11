@@ -72,6 +72,17 @@ const styles = {
   liveFinal: { color: theme.text, fontSize: 11, lineHeight: 1.6 },
   livePartial: { color: theme.textMuted, fontStyle: 'italic', fontSize: 11, lineHeight: 1.6 },
   liveTime: { color: theme.textMuted, fontSize: 10, fontFamily: theme.mono, marginRight: 6 },
+
+  // 页面模式（CR-02）：入口搬到侧栏后，这里是主区域的「会记」页面，不再是浮在输入框上的卡片
+  pageRoot: {
+    display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0,
+    boxSizing: 'border-box', overflowY: 'auto', padding: '20px 24px 28px',
+    color: theme.text, fontFamily: theme.font, background: theme.bg,
+  },
+  pagePanel: {
+    display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 860,
+    fontSize: 13, border: 'none', padding: 0, background: 'transparent',
+  },
 }
 
 const PHASE_TEXT = {
@@ -83,7 +94,7 @@ const PHASE_TEXT = {
   error: '出错',
 }
 
-export function QuickPanel({ sessionId } = {}) {
+export function QuickPanel({ sessionId, page = false } = {}) {
   // 槽位 0 仍是 open；CR-01 撤销持久化：默认收起，不跨会话记忆
   const [open, setOpen] = useState(false)
   const [rows, setRows] = useState([])
@@ -368,8 +379,9 @@ export function QuickPanel({ sessionId } = {}) {
   const liveCard = liveView(live, { silenceSec: liveSilence })
   const trigger = triggerView({ recording, seconds, open })
 
-  return createElement('div', { ref: rootRef, style: styles.root },
-    createElement('button', {
+  // 页面模式：不渲染入口按钮（入口在侧栏），内容直接铺成主区域页面
+  return createElement('div', { ref: rootRef, style: page ? styles.pageRoot : styles.root },
+    page ? null : createElement('button', {
       type: 'button',
       style: styles.trigger,
       title: trigger.title,
@@ -382,7 +394,7 @@ export function QuickPanel({ sessionId } = {}) {
       trigger.timing ? createElement('span', { key: 'timing', style: styles.timing }, trigger.timing) : null,
     ),
 
-    open ? createElement('div', { style: styles.panel },
+    (page || open) ? createElement('div', { style: page ? styles.pagePanel : styles.panel },
       createElement('div', { style: styles.row },
         createElement('strong', null, '会记'),
         createElement('span', { style: styles.muted }, caps.cloudReady ? `云端可用${caps.cloudModel ? `·${caps.cloudModel}` : ''}` : '云端未配置'),
