@@ -1,6 +1,7 @@
 # 任务：meeting-trigger
 
-> 版本: v0.1.0 | 状态: 已确认 | 更新: 2026-11-12 | 确认人: 陈卓 | 确认日期: 2026-11-12
+> 版本: v0.2.0 | 状态: 待确认 | 更新: 2026-11-11 | 确认人: | 确认日期:
+> 变更: CR-01（新增 T-08~T-10；T-03 记忆部分回退、T-04 拆分到 T-10）
 > 需求: `requirements.md` v0.1.0（已确认）| 方案: `plan.md` v0.1.0（已确认）
 > 施工分支: `feature/meeting-trigger`（自 `1.1.0` 切出，完成后 `--no-ff` 合回）
 
@@ -17,6 +18,7 @@
 | R-07 功能不回归 | T-04 |
 | R-08 主题安全 | T-02 |
 | R-09 可测 | T-01, T-05 |
+| R-10 卡片不遮挡输入区（CR-01） | T-08, T-10 |
 
 ## 验收场景 → 任务
 
@@ -29,6 +31,7 @@
 | S-05 键盘 | T-02, T-03 |
 | S-06 全流程不回归 | T-04, T-07 |
 | S-07 Esc 收起 | T-03 |
+| S-08 录制中可打字（CR-01） | T-08, T-10 |
 
 ## 任务清单
 
@@ -51,7 +54,7 @@
   `border` 已不在入口样式；视觉真机见 T-07。
   日志断言: 无（UI 渲染）
 
-- [x] T-03 卡片收起记忆与 Esc（R-04 / R-05 / R-06）[记忆抽到 logic.js 的 readPanelOpen/writePanelOpen 并单测 3 例；Esc 与点外部同一 effect]
+- [x] T-03 卡片收起记忆与 Esc（R-04 / R-05 / R-06）`[CR-01：记忆部分回退 → T-09]`[记忆抽到 logic.js 的 readPanelOpen/writePanelOpen 并单测 3 例；Esc 与点外部同一 effect]
   依赖: T-02
   验收标准: `localStorage` 键 `dsh-note-taker:panel-open`；`useState` 初始化读记忆，缺省/读失败为
   `false`（收起）；每次都 toggle 后写回；读写均 `try/catch` 吞异常；`Esc` 仅在 `open` 时挂载、
@@ -101,3 +104,34 @@ T-01 → T-02 → T-03 → T-04 → T-05 → T-07
 
 7 项全勾 + `npm run verify` 真实输出（344+N 例全过、构建哈希更新）+ 真机确认原话，
 才写 `completion.md` 并进入合并。
+
+## CR-01 新增任务（2026-11-11）
+
+- [ ] T-08 卡片锚点改为输入行上沿、且不与输入区重叠（CR-01 / R-10）
+  依赖: 无 | 处置: 新增
+  验收标准: `root` 增加 `alignSelf:'stretch'` 与 flex 居中；`panel` 改用 `bottom:'100%'` + `marginBottom:8`
+  （不再用 `calc(100% + 8px)` 把锚点推进行内）；`panel.maxWidth` 兜窄屏；入口视觉位置不变。
+  验证方式: 产物断言 `"bottom":"100%"` 与 `"alignSelf":"stretch"`；真机点输入框能进光标。
+  日志断言: 无
+
+- [ ] T-09 撤销跨会话开合记忆（CR-01 / R-05）
+  依赖: 无 | 处置: 新增（回退 T-03 的记忆部分）
+  验收标准: 删 `PANEL_STATE_KEY`/`readPanelOpen`/`writePanelOpen`；`open` 回到 `useState(false)`；
+  收起/展开不再写浏览器存储；`page-logic` 的 3 个记忆用例删除。
+  验证方式: `node --test tests/page-logic.test.js` 贴输出（应回到 14 例）；`grep -r "panel-open" src/` 无命中。
+  日志断言: 无
+
+- [ ] T-10 断言改写与真机复验（CR-01 / R-10 / S-08）
+  依赖: T-08, T-09 | 处置: 新增（承接 T-04/T-07）
+  验收标准: `page-render` 收起态用例改写成「默认收起」；新增断言「卡片展开时 panel 不进入输入行」
+  （`"bottom":"100%"`）；真机：卡片展开、录制中直接点输入框能打字并发送。
+  验证方式: `npm run verify` 贴真实输出（结构检查/构建哈希/tests 数）；真机由用户确认原话。
+  日志断言: 宿主日志无新增 ERROR/WARN
+
+## 依赖图（CR-01 段）
+
+```
+T-08 ─┐
+      ├→ T-10 →（真机复验 → completion）
+T-09 ─┘
+```
