@@ -13,3 +13,6 @@
   - `qwen3-asr-flash-realtime` 首字 ≈0.3s、每句定稿 ≈0.15s；中间结果 = `text + stash`；完成事件无时间戳
   - `qwen-audio-3.1/3.0-realtime-flash` 实测是 omni 对话模型，会对音频「回话」→ 不选
 - **Phase 2 方案**：坑核对 8 条相交；6 个决策；7 个共享面身份；8 条日志点；时间戳本地推导
+- **确认②**（2026-11-11）确认人: 陈卓 —— plan.md 转 v1.0.0 已确认，进入 Phase 3
+- **Phase 3 任务**：9 条（T-01 配置 / T-02 sidecar 旁路 PCM / T-03 流式客户端 / T-04 live 路由 /
+  T-05 service 接线 / T-06 路由与共享面回归 / T-07 字幕区 / T-08 隐私与 api / T-09 端到端）
