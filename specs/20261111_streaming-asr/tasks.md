@@ -43,7 +43,7 @@
   日志断言: 跑一次流式停录——日志须出现「收尾完成, 耗时=…ms, finals=…, chars=…」；降级用例须出现「降级, 原因=…」；两处均不得含 Key
   验收标准: 6 例全绿；既有 267 个测试无一失败
 
-- [ ] T-06 路由透传 `stream` 与共享面回归
+- [x] T-06 路由透传 `stream` 与共享面回归
   关联: R-01, R-06, R-09
   依赖: T-05
   验证方式: ①`POST /note-taker/record` 带 `stream:true` 进入流式、不带时行为不变；②按 plan 的共享面身份矩阵逐条断言 8 个身份：卡片 start/stop、工具 `meeting_record_start/stop`、`tests/routes.test.js`、`tests/service.test.js`、`recordings/<id>.wav`、产物单文件（detail/交接/纪要读取）、`GET /live` 的 idle 响应、`config.json` 既有四项解析

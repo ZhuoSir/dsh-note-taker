@@ -145,7 +145,7 @@ test('record：非法 action 被拒，start/stop 分派正确', async () => {
   assert.equal(calls.length, 0)
 
   await invoke(routeByName(routes, 'record'), fakeReq({ method: 'POST', url: '/note-taker/record', body: { action: 'start', label: '周会' } }))
-  assert.deepEqual(calls[0], ['recordStart', { label: '周会' }])
+  assert.deepEqual(calls[0], ['recordStart', { label: '周会', stream: undefined, sessionId: undefined, workspaceDir: undefined }])
 
   await invoke(routeByName(routes, 'record'), fakeReq({ method: 'POST', url: '/note-taker/record', body: { action: 'stop' } }))
   assert.deepEqual(calls[1], ['recordStop'])
