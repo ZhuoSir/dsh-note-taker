@@ -17,6 +17,7 @@ import { STREAM_CONSENT_TEXT, capabilitiesFrom, errorText, formatDateTime, forma
 import { LIVE_POLL_MS } from './logic.js'
 import { theme } from './theme.js'
 import { useRecordState } from './recordState.js'
+import { currentSessionId } from './host.js'
 
 const POLL_MS = 2000
 const TRANSCRIBE_TIMEOUT_MS = 15 * 60 * 1000
@@ -84,6 +85,12 @@ const styles = {
     display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 860,
     fontSize: 13, border: 'none', padding: 0, background: 'transparent',
   },
+}
+
+/** 会话 id 太长，界面里只露尾巴 */
+function shortId(id) {
+  if (typeof id !== 'string' || id === '') return '（未识别到当前会话）'
+  return id.length <= 16 ? id : `…${id.slice(-8)}`
 }
 
 const PHASE_TEXT = {
@@ -374,10 +381,12 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     if (built.ok === false) { setPhase('error'); setError(built.reason); return }
 
     setPhase('sending')
-    const sent = await sendToSession({ sessionId, text: built.text })
+    // 页面态拿不到会话注入 → 用宿主记录的「当前打开的会话」
+    const target = sessionId ?? currentSessionId()
+    const sent = await sendToSession({ sessionId: target ?? undefined, text: built.text })
     if (sent.ok) {
       setPhase('sent')
-      setNotice(`已发送到会话（${built.mode === 'summary' ? '摘要模式' : '全文'}，${built.chars} 字）`)
+      setNotice(`已发送到会话 ${shortId(sent.sessionId)}（${built.mode === 'summary' ? '摘要模式' : '全文'}，${built.chars} 字）· 点左侧该会话查看`)
       return
     }
     setError(`无法自动发送：${sent.reason}`)
@@ -519,7 +528,8 @@ export function QuickPanel({ sessionId, page = false } = {}) {
       // 确认区：识别完成后出现，可编辑
       phase === 'confirm' || phase === 'sending' || phase === 'sent'
         ? createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
-            createElement('div', { style: styles.muted }, `识别结果（可改错字）· ${transcript.length} 字`),
+            createElement('div', { style: styles.muted },
+              `识别结果（可改错字）· ${transcript.length} 字 · 目标会话 ${shortId(sessionId ?? currentSessionId())}`),
             createElement('textarea', {
               style: styles.textarea, value: transcript,
               onChange: (event) => setTranscript(event.target.value),

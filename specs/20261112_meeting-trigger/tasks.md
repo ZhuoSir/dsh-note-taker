@@ -165,6 +165,10 @@ T-09 ─┘
   证据: 宿主 `streaming: Boolean(recording.stream)`；客户端派生 `recording/liveMeetingId/liveStreaming`
   并在外部录音时重建 `current`；CDP 实测切回后 /live 轮询恢复、字幕框与「录制中」都在
 
+- [x] T-12d 「交给会话」拿不到当前会话 id（用户反馈）
+  证据: `currentSessionId()` 读 `dsh.sessions.current`；作用域缺失时用 `sessions.using` 借；
+  web 实操「已发送到会话 …ee3c2e27（全文，38 字）」，会话存储里出现 `agent/inbox/spliced` + `turn/start`
+
 - [ ] T-15 真机验证（CR-02 / S-09 / S-10）
   验收标准: 侧栏出现第 4 行「会记」；点击进入页面；录制中切会话图标仍是绿点 + 计时；无会话也能录音
   验证方式: 用户原话确认
@@ -189,4 +193,5 @@ T-12 ─┼→ T-13 → T-14 → T-15（真机）
 - 录制中切会话 / 切到空会话，入口仍在、仍能停止
 - 2026-11-11 追加实测：切走再切回会记页面，字幕区恢复（`{字幕框:true, 录制中:true, 停止按钮:true}`），
   `/live` 轮询在切走后归零、切回后恢复
+
 

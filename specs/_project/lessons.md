@@ -436,3 +436,44 @@ dsh-note-taker: pending (waiting for services: required, optional)
 验证方式（可复用）：CDP 里开 `Network.enable`，数 `/note-taker/live` 请求——
 录音中理应每 0.5s 一条，切走后归零，切回后重新出现。这比「用眼睛看框还在不在」可靠得多。
 
+## L-33 面板位拿不到会话，但「当前会话」在 localStorage 里
+
+`main` 槽的面板收到的是**空 props**（宿主源码就是 `renderSlot("main", {}, { entryKey })`），
+搬到侧栏之后，原先靠 `conversation.input.right` 注入的 `sessionId` 彻底没了，
+于是「交给会话」卡在「拿不到当前会话 id」。
+
+真相在宿主的 workspace 选择里，它持久化在 localStorage：
+`dsh.sessions.current` → `{"sessionId":"session-b3e22b42-…"}`。
+
+另外，会话正开着时 `sessions.scope(id)` 才拿得到作用域；正在看会记页面时主区域被面板占着，
+作用域可能已经释放——这时用 `sessions.using(id, {source}, op)` 临时借一个（内部 retain → open →
+release），在回调里发完就还。
+
+## L-34 静音录音会让云端 ASR 直接 400，验证要准备真实语音
+
+8 秒静音的录音，云端返回 `ASR_RESPONSE_HAVE_NO_WORDS`（HTTP 400），会议状态落到
+`transcribe: failed`。真机验证时如果只坐在那儿不吭声，走的是失败路径，测不到成功路径。
+
+可用的制造语音办法：Windows 自带 TTS 念一段中文，录音端会把它录进去。
+
+```powershell
+Add-Type -AssemblyName System.Speech
+$s = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$s.SelectVoice('Microsoft Huihui Desktop')
+$s.Speak('大家好，这是一次自动化验证会议。')
+```
+
+**未解释清楚的一处（留档）**：有一次静音录音，界面在「识别中」停留了 90 秒以上，
+而当时 `/note-taker/detail` 的请求数是 **0**（没有轮询发生），会议状态已经是 `failed`。
+代码里 `awaitTranscript` 是处理了 `failed` 的（会切到出错态），所以更可能是轮询根本没启动、
+或启动前就中断了。因为只出现过一次、且此后两次复现都是正常路径，暂不改代码；
+若再出现，先抓 `/detail` 请求数和当时 phase。
+
+## L-35 验证「消息真进了会话」要看会话存储，不看界面提示
+
+界面说「已发送」只代表 `conversation.send` 没有抛错。真正的证据在会话存储：
+`~/.dsh/sessions/<workspace>/<sessionId>/session.v4.jsonl.zstd`。
+它是**多个 zstd frame 拼接**的文件，用 `zlib.zstdDecompressSync` 只解得出第一帧，
+要按 magic `28 b5 2f fd` 切分逐帧解压。命中 `agent/inbox/spliced` + 紧随其后的 `turn/start`，
+才算「消息进去了而且真的开始处理」。
+
