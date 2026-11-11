@@ -89,7 +89,7 @@ agent 会调 `meeting_import`，你拿到的是产物文件路径，它自己读
 {
   "ok": true,
   "meetingId": "20261110-1725-d532",
-  "label": "XXX·XXX 2",
+  "label": "XXX 会议",
   "durationSec": 2826.52,
   "transcribed": true,
   "segments": 507,
