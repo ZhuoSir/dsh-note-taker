@@ -263,6 +263,19 @@ test('显式 stream=false 覆盖「配置已启用」：本次仍走普通录音
   await service.recordStop()
 })
 
+test('配置开着但缺密钥：不显式要流式就安静回落普通录音（不能把录音堵死）', async () => {
+  FakeWS.reset()
+  const { service, spawns } = makeContext({ enabled: '1', withKey: false })
+
+  const started = await service.recordStart({ label: '缺密钥但配置开着' })
+  assert.equal(started.ok, true, JSON.stringify(started))
+  assert.equal(started.stream.stream, false, '应回落到普通录音')
+  assert.equal(spawns[0].includes('--pcm-out'), false)
+  assert.equal(FakeWS.instances.length, 0)
+
+  await service.recordStop()
+})
+
 test('并发第二场录音仍被拒（状态机不变）', async () => {
   FakeWS.reset()
   const { service } = makeContext({ enabled: '0' })
