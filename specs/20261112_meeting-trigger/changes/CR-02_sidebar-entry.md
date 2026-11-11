@@ -81,3 +81,28 @@ ctx.slots.inject('sidebar.panellist', () => ctx.slots.register(
 | 注册点 | `settings.section` 保留；删 `conversation.input.right`；增 `main`、`sidebar.panellist` |
 | 测试 | `page-render` 改为渲染页面模式 + 注册表断言；`page-live` 改用模块导出 |
 | 缺陷 | BUG-02 结构性解决；BUG-01/BUG-03 不再可能发生 |
+
+## §I 补记：web 版真机验证（2026-11-11）
+
+用 `dsh --profile web --port 8099` 起了 web 宿主，再用 Chrome DevTools Protocol 无人值守驱动，
+实测三个必须修的问题：
+
+1. **`ctx.layout` 未声明注入 → main 插槽白屏**
+   `Error: cannot get property "layout" without inject` / `slot entry crashed in 'main'`。
+   改为 `resolveClose(ctx)` 里 try/catch 探，取不到就不显示「返回会话」。
+2. **`inject` 对象形式不被支持 → 整个 web 壳启动失败**
+   `web boot: 1 entry did not activate` + `pending (waiting for services: required, optional)`。
+   退回数组 `['slots']`。
+3. **页面模式不初始化 → 显示「云端未配置 / 开始录音禁用」**
+   初始化 effect 挂在 `open` 上，页面里 `open` 恒为 false。改为 `visible = page || open`。
+
+修复后的实测输出（CDP 驱动真浏览器）：
+
+```json
+{ "页面含会记页内容": true, "云端已配置": true, "开始录音可用": true, "状态词": ["空闲"] }
+```
+
+宿主侧接口实测：`GET /note-taker/record` → `200 {"ok":true,"running":false}`；
+侧栏入口实测：`aria-label="会记"`、`y=200`，工作区分组标题在 `y=254`（入口在其上方）；
+SVG 两个圆（外环 + 内点），空闲态取 `--dsw-alias-label-tertiary`。
+

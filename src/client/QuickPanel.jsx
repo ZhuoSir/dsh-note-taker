@@ -16,6 +16,7 @@ import { copyText, hostStatusText, sendToSession } from './host.js'
 import { STREAM_CONSENT_TEXT, capabilitiesFrom, errorText, formatDateTime, formatDuration, liveView, needsStreamConsent, shouldPollLive, triggerView } from './logic.js'
 import { LIVE_POLL_MS } from './logic.js'
 import { theme } from './theme.js'
+import { useRecordState } from './recordState.js'
 
 const POLL_MS = 2000
 const TRANSCRIBE_TIMEOUT_MS = 15 * 60 * 1000
@@ -154,16 +155,19 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     setHealth(healthResult.ok === false ? null : healthResult)
   }, [api])
 
+  // 页面模式没有「展开」这一步：一进页面就该拉数据（否则会一直显示「云端未配置」）
+  const visible = page || open
+
   useEffect(() => {
-    if (!open) return undefined
+    if (!visible) return undefined
     refresh()
     const timer = setInterval(() => { if (typeof document === 'undefined' || !document.hidden) refresh() }, POLL_MS * 2)
     return () => clearInterval(timer)
-  }, [open, refresh])
+  }, [visible, refresh])
 
   // 点面板外部或按 Esc 收起（R-04）：两个监听合成一个 effect，Esc 不阻止默认行为
   useEffect(() => {
-    if (!open) return undefined
+    if (!visible || page) return undefined // 页面模式没有「点外面收起」
     const close = () => { if (consentResolveRef.current) answerConsent(false); setOpen(false) }
     const onDown = (event) => { if (rootRef.current && !rootRef.current.contains(event.target)) close() }
     const onKey = (event) => { if (event.key === 'Escape') close() }
@@ -374,7 +378,17 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     setLive(null); setLiveSilence(0)
   }, [])
 
-  const recording = phase === 'recording'
+  /**
+   * 全局录音状态（CR-02 / R-14）。
+   *
+   * 放在所有 useState 之后调用，是为了不打乱组件自身的 hook 序号（渲染测试按序号注入初值）。
+   * 作用：录音在另一个会话里开着、或本组件重新挂载时，页面仍显示「停止并识别」而不是「开始录音」。
+   */
+  const globalRecord = useRecordState()
+  const externalRunning = page && globalRecord.running === true
+
+  const recording = phase === 'recording' || externalRunning
+  const liveSeconds = externalRunning ? globalRecord.seconds : seconds
   const busy = ['starting', 'stopping', 'transcribing', 'sending'].includes(phase)
   const liveCard = liveView(live, { silenceSec: liveSilence })
   const trigger = triggerView({ recording, seconds, open })
@@ -415,7 +429,7 @@ export function QuickPanel({ sessionId, page = false } = {}) {
 
       createElement('div', { style: styles.row },
         recording
-          ? createElement('button', { type: 'button', style: styles.btn, onClick: stopRecord }, `停止并识别 ${formatDuration(seconds)}`)
+          ? createElement('button', { type: 'button', style: styles.btn, onClick: stopRecord }, `停止并识别 ${formatDuration(liveSeconds)}`)
           : createElement('button', {
               type: 'button',
               style: (busy || !caps.recordingReady) ? { ...styles.btn, opacity: 0.5 } : styles.btn,

@@ -374,3 +374,41 @@
 `elementFromPoint` + `focusin/focusout/keydown` 监听 + 一次对照实验（开/关某个功能各试一次），
 十分钟就能定性；靠猜会连改三轮。**先测量，后动手。**
 
+## L-28 cordis 里读未声明的 ctx 服务会直接抛，`?.` 救不了
+
+现象：`main` 插槽的页面组件一片空白，宿主控制台报
+
+```
+Error: cannot get property "layout" without inject
+ERROR: slot entry crashed in 'main': ...
+```
+
+我写的是 `typeof ctx.layout?.selectPanel === 'function'`，以为可选链能兜住——
+没用：`ctx.layout` 这个**属性读取本身**就触发 cordis 的 inject 检查并抛错，
+`?.` 在抛错之后才有机会生效，于是整个插槽渲染崩掉（宿主只说 "slot entry crashed"，主区域空白）。
+
+正确做法：把服务读取包在 `try { ctx.layout } catch { undefined }` 里，取不到就降级；
+或者老实声明 `inject: ['layout']`。
+
+## L-29 本版 cordis 不认 `inject: { required, optional }`
+
+想把 `layout` 声明成可选注入，写了对象形式，结果整个 web 壳起不来：
+
+```
+ERROR: web boot: 1 entry did not activate
+dsh-note-taker: pending (waiting for services: required, optional)
+```
+
+它把对象**当成了服务名集合**——`required` / `optional` 被当成两个待等服务的名字。
+结论：这个版本只接受数组形式 `inject: ['slots']`；可选依赖只能靠 try/catch 自己降级，
+别用对象形式（一旦服务名对不上，插件永不激活，连累整个 UI 启动失败）。
+
+## L-30 组件拆成「卡片 + 页面」两种形态时，初始化 effect 不能挂在 open 上
+
+`QuickPanel` 原来是浮层卡片，初始化（拉 health / list）写在 `useEffect(() => { if (!open) return; refresh() }, [open])`。
+加页面模式后 `open` 永远是 false，于是页面里**永远不拉数据**——表现为「云端未配置 + 开始录音禁用」，
+看起来像配置丢了，其实是初始化根本没跑。
+
+教训：组件有多种挂载形态时，判断条件要写成「可见」而不是某一种形态的私有状态
+（`const visible = page || open`）；同时「点外部收起」这类浮层专属行为要显式排除页面模式。
+

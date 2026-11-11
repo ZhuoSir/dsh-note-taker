@@ -15,10 +15,40 @@ import { RecordIcon } from './RecordIcon.jsx'
 import { probeHost } from './host.js'
 
 export const name = 'dsh-note-taker'
+
+/**
+ * 只声明 slots。
+ *
+ * 两个真机教训：
+ * 1) 读 ctx.layout 会触发 cordis 的 inject 检查，没声明就抛
+ *    `cannot get property "layout" without inject` → main 插槽整页白屏；
+ * 2) 本版 cordis 不认 `{ required, optional }` 对象形式，会把它当成服务名去等
+ *    → 插件永不激活、整个 web 壳启动失败（web boot: 1 entry did not activate）。
+ *
+ * 所以这里保持数组，并且 layout 一律用 resolveClose() 里的 try/catch 探。
+ */
 export const inject = ['slots']
 
 /** 面板 id：sidebar.panellist 的 id 与 main 的 key 必须是同一个 */
 const PANEL_ID = 'meeting-panel'
+
+/**
+ * 取「返回会话」的回调。
+ * cordis 的 inject 检查在**读属性时**触发——不包 try/catch 会直接抛出去，
+ * 整个 main 插槽白屏（真机踩过）。取不到就返回 undefined，按钮自然不显示。
+ */
+function resolveClose(ctx) {
+  let layout = null
+  try {
+    layout = ctx.layout ?? null
+  } catch {
+    return undefined
+  }
+  if (typeof layout?.selectPanel !== 'function') return undefined
+  return () => {
+    try { layout.selectPanel(null) } catch { /* 切不动就留在页面 */ }
+  }
+}
 
 export function apply(ctx) {
   // 探测「能不能往会话发消息」：结果显示在页面底部（T-01）
@@ -43,12 +73,7 @@ export function apply(ctx) {
       {
         name: 'main',
         key: PANEL_ID,
-        inject: () => ({
-          // 有 layout 才能切回会话；没有就退化成「用户自己点会话」（不影响功能）
-          close: typeof ctx.layout?.selectPanel === 'function'
-            ? () => { try { ctx.layout.selectPanel(null) } catch { /* 切不动就保持当前页 */ } }
-            : undefined,
-        }),
+        inject: () => ({ close: resolveClose(ctx) }),
       },
       MeetingPanel,
     ))

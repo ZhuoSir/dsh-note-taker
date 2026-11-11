@@ -157,6 +157,10 @@ T-09 ─┘
   证据: `conversation.input.right` 注册已删除；`page-render` 增加注册表断言（id 与 key 一致、order 30、
   不再有 input.right）；`page-live` 改用模块导出
 
+- [x] T-12b 页面模式初始化修复（web 版实测发现）
+  证据: 初始化 effect 改 `visible = page || open`；`useRecordState` 接入页面态，
+  另一会话开着的录音在页面里显示「停止并识别 mm:ss」
+
 - [ ] T-15 真机验证（CR-02 / S-09 / S-10）
   验收标准: 侧栏出现第 4 行「会记」；点击进入页面；录制中切会话图标仍是绿点 + 计时；无会话也能录音
   验证方式: 用户原话确认
@@ -168,3 +172,15 @@ T-11 ─┐
 T-12 ─┼→ T-13 → T-14 → T-15（真机）
       ┘
 ```
+
+### T-15 进展（web 版 CDP 实测，2026-11-11）
+
+已完成（脚本 `node .tmp/cdp-panel2.mjs <url>`）：
+- 侧栏入口存在且在工作区标题之上（y=200 < 254），`aria-label="会记"`
+- 点击后主区域渲染会记页面，`云端已配置: true`，`开始录音可用: true`，状态词「空闲」
+- `GET /note-taker/record` 返回 `200 {"ok":true,"running":false}`
+
+仍需真人真机确认（headless 无麦克风，录不了音）：
+- 录制中侧栏图标变绿 + 显示 mm:ss
+- 录制中切会话 / 切到空会话，入口仍在、仍能停止
+
