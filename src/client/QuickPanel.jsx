@@ -198,10 +198,37 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     return () => clearInterval(timer)
   }, [phase])
 
+  /**
+   * 全局录音态（CR-02 / R-14）。
+   *
+   * 放在 useState 之后、所有 effect 之前调用：不打乱 hook 序号，
+   * 又让字幕轮询能看见「这个录音不是本组件发起的」——切走再切回来才不会把字幕框丢掉。
+   */
+  const globalRecord = useRecordState()
+  const externalRunning = page && globalRecord.running === true
+  const recording = phase === 'recording' || externalRunning
+  const liveMeetingId = current?.meetingId ?? (externalRunning ? globalRecord.meetingId : null)
+  const liveStreaming = current?.streaming === true || (externalRunning && globalRecord.streaming === true)
+
+  // 外部（别的会话/上次进入）开着的录音：把当前会议补进组件状态，字幕轮询才有 context
+  useEffect(() => {
+    if (!externalRunning || !globalRecord.meetingId) return
+    setPhase((value) => (value === 'idle' || value === 'error' || value === 'sent' ? 'recording' : value))
+    setCurrent((value) => (value?.meetingId === globalRecord.meetingId
+      ? value
+      : {
+          meetingId: globalRecord.meetingId,
+          label: globalRecord.label ?? '',
+          startedAt: globalRecord.startedAt ?? null,
+          durationSec: null,
+          streaming: globalRecord.streaming === true,
+        }))
+  }, [externalRunning, globalRecord.meetingId, globalRecord.label, globalRecord.startedAt, globalRecord.streaming])
+
   // 字幕轮询（R-02）：只在流式录音期间开；页面隐藏时暂停，回来再继续
   useEffect(() => {
-    const meetingId = current?.meetingId
-    if (phase !== 'recording' || current?.streaming !== true || !meetingId) {
+    const meetingId = liveMeetingId
+    if (!recording || liveStreaming !== true || !meetingId) {
       setLive(null)
       setLiveSilence(0)
       return undefined
@@ -229,7 +256,7 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     tick()
     const timer = setInterval(tick, LIVE_POLL_MS)
     return () => { stopped = true; clearInterval(timer) }
-  }, [phase, current?.meetingId, current?.streaming, api])
+  }, [recording, liveMeetingId, liveStreaming, api])
 
   const startRecord = useCallback(async () => {
     setError(null); setNotice(null); setPhase('starting')
@@ -378,16 +405,6 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     setLive(null); setLiveSilence(0)
   }, [])
 
-  /**
-   * 全局录音状态（CR-02 / R-14）。
-   *
-   * 放在所有 useState 之后调用，是为了不打乱组件自身的 hook 序号（渲染测试按序号注入初值）。
-   * 作用：录音在另一个会话里开着、或本组件重新挂载时，页面仍显示「停止并识别」而不是「开始录音」。
-   */
-  const globalRecord = useRecordState()
-  const externalRunning = page && globalRecord.running === true
-
-  const recording = phase === 'recording' || externalRunning
   const liveSeconds = externalRunning ? globalRecord.seconds : seconds
   const busy = ['starting', 'stopping', 'transcribing', 'sending'].includes(phase)
   const liveCard = liveView(live, { silenceSec: liveSilence })

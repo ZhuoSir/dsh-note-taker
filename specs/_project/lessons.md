@@ -412,3 +412,27 @@ dsh-note-taker: pending (waiting for services: required, optional)
 教训：组件有多种挂载形态时，判断条件要写成「可见」而不是某一种形态的私有状态
 （`const visible = page || open`）；同时「点外部收起」这类浮层专属行为要显式排除页面模式。
 
+## L-31 「字段名猜错了」不会报错，只会让功能静默失效
+
+`recordState()` 里我写 `streaming: Boolean(recording.stream?.engine)`，
+而 `recordStart` 实际存的是 `state.stream = { session, tail, config }`——**没有 `engine` 字段**。
+不报错、不抛异常，接口照常 200，只是 `streaming` 永远是 `false`。
+
+后果：切走再切回会记页面时，页面以为「这不是流式录音」，于是不启动字幕轮询，
+用户看到的就是「识别内容的框没了」。真正的主因在客户端（重挂载后丢状态），
+但这个字段错误让客户端连补救的机会都没有。
+
+教训：跨层传状态时，**写字段的那一刻就去读一遍生产方到底存了什么**；
+用 `?.` 读可能不存在的字段，等于把拼写错误变成永久 `false`。
+
+## L-32 重挂载即失忆：临时 UI 状态必须能从宿主重建
+
+字幕框、当前会议、录音态原本都只存在组件 state 里。切会话 → 组件卸载 → 全丢。
+即使录音还在跑，回来也是「未录音」的样子。
+
+正确姿势：**组件是视图，真相在宿主**。挂载时用全局接口（`GET /record`）把
+`phase / current / streaming` 重建出来，然后照常轮询；组件 state 只做缓存。
+
+验证方式（可复用）：CDP 里开 `Network.enable`，数 `/note-taker/live` 请求——
+录音中理应每 0.5s 一条，切走后归零，切回后重新出现。这比「用眼睛看框还在不在」可靠得多。
+

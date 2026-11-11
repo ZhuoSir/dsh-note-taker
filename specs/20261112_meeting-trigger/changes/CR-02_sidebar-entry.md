@@ -106,3 +106,32 @@ ctx.slots.inject('sidebar.panellist', () => ctx.slots.register(
 侧栏入口实测：`aria-label="会记"`、`y=200`，工作区分组标题在 `y=254`（入口在其上方）；
 SVG 两个圆（外环 + 内点），空闲态取 `--dsw-alias-label-tertiary`。
 
+## §I 补记二：切页面后字幕消失（2026-11-11 用户反馈）
+
+用户原话：
+
+> 录制开始后，能看到实时识别出来的内容，但是我切换到其他页面后，再回去，识别内容的框就没了
+
+两处叠加：
+
+1. **宿主**：`recordState()` 把 `streaming` 写成 `Boolean(recording.stream?.engine)`，
+   而 `state.stream` 是 `{ session, tail, config }` —— 没有 `engine`，永远返回 `false`。
+2. **客户端**：字幕框/当前会议/录音态只存在组件 state，切页面卸载即丢；
+   重建时又因 `streaming=false` 不启轮询。
+
+修法：宿主改 `Boolean(recording.stream)`；客户端在 useState 之后接入 `useRecordState()`，
+用 `recording / liveMeetingId / liveStreaming` 三个派生量驱动字幕轮询，
+并在 `externalRunning` 时把 `current`（含 meetingId、startedAt、streaming）补进组件状态。
+
+CDP 实测（真录音，非模拟）：
+
+```
+录音中页面内   /live 每 0.5s 一条 ×18
+切走           归零
+切回后         +5.1s 恢复，此后每 0.5s 一条
+切回后状态     {字幕框:true, 录制中:true, 停止按钮:true, 字数:5}
+```
+
+顺带修好一个隐藏问题：录制中侧栏图标内含计时文字，按钮的可访问文本会变成「0:05 会记」，
+自动化按 `aria-label === '会记'` 精确匹配会找不到——测试脚本要按 `^会记` 前缀匹配。
+
