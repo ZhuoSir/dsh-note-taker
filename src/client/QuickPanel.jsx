@@ -13,7 +13,8 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import { createApi } from './api.js'
 import { buildHandoffMessage } from './handoff.js'
 import { copyText, hostStatusText, sendToSession } from './host.js'
-import { capabilitiesFrom, errorText, formatDateTime, formatDuration } from './logic.js'
+import { STREAM_CONSENT_TEXT, capabilitiesFrom, errorText, formatDateTime, formatDuration, liveView, needsStreamConsent, shouldPollLive } from './logic.js'
+import { LIVE_POLL_MS } from './logic.js'
 import { theme } from './theme.js'
 
 const POLL_MS = 2000
@@ -44,6 +45,14 @@ const styles = {
     padding: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: 'transparent',
     color: theme.text, fontFamily: theme.mono, fontSize: 11, lineHeight: 1.5,
   },
+  // 字幕区：定稿强（正文色）、中间结果弱（灰 + 斜体），不引入新颜色令牌
+  liveBox: {
+    display: 'flex', flexDirection: 'column', gap: 4, padding: 8, borderRadius: 8,
+    border: `1px solid ${theme.border}`, maxHeight: 168, overflowY: 'auto',
+  },
+  liveFinal: { color: theme.text, fontSize: 11, lineHeight: 1.6 },
+  livePartial: { color: theme.textMuted, fontStyle: 'italic', fontSize: 11, lineHeight: 1.6 },
+  liveTime: { color: theme.textMuted, fontSize: 10, fontFamily: theme.mono, marginRight: 6 },
 }
 
 const PHASE_TEXT = {
@@ -68,7 +77,12 @@ export function QuickPanel({ sessionId } = {}) {
   const [elapsed, setElapsed] = useState(0)
   const [labelDraft, setLabelDraft] = useState('')
   const [refreshError, setRefreshError] = useState(null)
+  const [live, setLive] = useState(null)
+  const [liveSilence, setLiveSilence] = useState(0)
   const rootRef = useRef(null)
+  const streamAckRef = useRef(false)
+  const liveKeyRef = useRef('')
+  const liveChangedAtRef = useRef(0)
 
   const api = useMemo(() => createApi({
     confirmCloud: (text) => (typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm(text) : false),
@@ -117,29 +131,63 @@ export function QuickPanel({ sessionId } = {}) {
     return () => clearInterval(timer)
   }, [phase])
 
-  const startRecord = useCallback(async () => {
-    setError(null); setNotice(null); setPhase('starting')
-    const result = await api.record({ action: 'start' })
-    if (result.ok === false) { setPhase('error'); setError(errorText(result.code, result.detail)); return }
-    setCurrent({ meetingId: result.meetingId, label: '', durationSec: null })
-    setPhase('recording')
-  }, [api])
+  // 字幕轮询（R-02）：只在流式录音期间开；页面隐藏时暂停，回来再继续
+  useEffect(() => {
+    const meetingId = current?.meetingId
+    if (phase !== 'recording' || current?.streaming !== true || !meetingId) {
+      setLive(null)
+      setLiveSilence(0)
+      return undefined
+    }
+    let stopped = false
 
-  const runTranscribe = useCallback(async (meetingId, durationSec) => {
-    setPhase('transcribing')
-    setTranscript('')
-
-    // 先取配置里的引擎，显式传下去（云端会触发二次确认）
-    const config = await api.getConfig()
-    const engine = config.ok === false ? undefined : config.config?.asr?.engine
-    const accepted = await api.transcribe({ id: meetingId, engine, sessionId })
-    if (accepted.ok === false) {
-      setPhase('error')
-      setError(errorText(accepted.code, accepted.detail))
-      if (accepted.message) setNotice(accepted.message)
-      return
+    const tick = async () => {
+      if (stopped) return
+      if (!shouldPollLive({ phase: 'recording', streaming: true, hidden: typeof document !== 'undefined' && document.hidden === true })) return
+      const result = await api.live({ id: meetingId })
+      if (stopped || result.ok === false) return
+      const snapshot = result.data ?? null
+      setLive(snapshot)
+      const key = `${snapshot?.chars ?? 0}|${snapshot?.partial ?? ''}`
+      if (key !== liveKeyRef.current) {
+        liveKeyRef.current = key
+        liveChangedAtRef.current = Date.now()
+      }
+      const silence = liveChangedAtRef.current === 0 ? 0 : Math.floor((Date.now() - liveChangedAtRef.current) / 1000)
+      setLiveSilence(silence)
     }
 
+    liveKeyRef.current = ''
+    liveChangedAtRef.current = Date.now()
+    tick()
+    const timer = setInterval(tick, LIVE_POLL_MS)
+    return () => { stopped = true; clearInterval(timer) }
+  }, [phase, current?.meetingId, current?.streaming, api])
+
+  const startRecord = useCallback(async () => {
+    setError(null); setNotice(null); setPhase('starting')
+
+    // 流式开启且本次会话还没确认过 → 先确认「录音期间持续上传音频」（R-08）
+    const wantStream = caps.streamReady === true
+    if (wantStream && needsStreamConsent({ streamEnabled: true, acknowledged: streamAckRef.current })) {
+      const granted = typeof window !== 'undefined' && typeof window.confirm === 'function'
+        ? window.confirm(STREAM_CONSENT_TEXT) === true
+        : false
+      if (!granted) {
+        setPhase('idle')
+        setNotice('已取消：未确认录音期间上传音频')
+        return
+      }
+      streamAckRef.current = true
+    }
+
+    const result = await api.record({ action: 'start', stream: wantStream ? true : undefined, sessionId })
+    if (result.ok === false) { setPhase('error'); setError(errorText(result.code, result.detail)); return }
+    setCurrent({ meetingId: result.meetingId, label: '', durationSec: null, streaming: result.stream?.stream === true })
+    setPhase('recording')
+  }, [api, caps.streamReady, sessionId])
+
+  const awaitTranscript = useCallback(async (meetingId, durationSec) => {
     const deadline = Date.now() + TRANSCRIBE_TIMEOUT_MS
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, POLL_MS))
@@ -157,6 +205,7 @@ export function QuickPanel({ sessionId } = {}) {
           outputPath: detail.outputPath ?? null,
           outputMode: detail.outputMode ?? 'fallback',
           workspaceRoot: detail.workspaceRoot ?? null,
+          streaming: false,
         })
         setLabelDraft(label)
         setTranscript(detail.transcript ?? '')
@@ -172,14 +221,52 @@ export function QuickPanel({ sessionId } = {}) {
     }
     setPhase('error')
     setError('识别超时，请稍后在设置页查看状态')
-  }, [api, refresh])
+  }, [api, refresh, sessionId])
+
+  const runTranscribe = useCallback(async (meetingId, durationSec) => {
+    setPhase('transcribing')
+    setTranscript('')
+
+    // 先取配置里的引擎，显式传下去（云端会触发二次确认）
+    const config = await api.getConfig()
+    const engine = config.ok === false ? undefined : config.config?.asr?.engine
+    const accepted = await api.transcribe({ id: meetingId, engine, sessionId })
+    if (accepted.ok === false) {
+      setPhase('error')
+      setError(errorText(accepted.code, accepted.detail))
+      if (accepted.message) setNotice(accepted.message)
+      return
+    }
+
+    await awaitTranscript(meetingId, durationSec)
+  }, [api, sessionId, awaitTranscript])
 
   const stopRecord = useCallback(async () => {
     setPhase('stopping')
-    const result = await api.record({ action: 'stop' })
+    const result = await api.record({ action: 'stop', sessionId })
     if (result.ok === false) { setPhase('error'); setError(errorText(result.code, result.detail)); return }
+
+    const stream = result.stream
+    // 流式已在录音期间出字（R-05/R-06）：直接进入确认区，不再跑一次整段识别
+    if (stream?.used === true) {
+      setLive(null)
+      setNotice(`流式识别完成：${stream.segments} 段 / ${stream.chars} 字${stream.timedOut ? '（末尾可能截断）' : ''}`)
+      setPhase('transcribing')
+      await awaitTranscript(result.meetingId, result.durationSec)
+      return
+    }
+    // 降级（R-07）：音频还在，等后台整段识别出结果，如实说明
+    if (stream?.degraded === true) {
+      setLive(null)
+      setNotice('流式未连上，已改用停录后的整段识别')
+      setPhase('transcribing')
+      await awaitTranscript(result.meetingId, result.durationSec)
+      return
+    }
+
+    setLive(null)
     await runTranscribe(result.meetingId, result.durationSec)
-  }, [api, runTranscribe])
+  }, [api, sessionId, awaitTranscript, runTranscribe])
 
   const handoff = useCallback(async () => {
     if (!current?.meetingId) return
@@ -223,10 +310,12 @@ export function QuickPanel({ sessionId } = {}) {
 
   const reset = useCallback(() => {
     setPhase('idle'); setCurrent(null); setTranscript(''); setLabelDraft(''); setError(null); setNotice(null)
+    setLive(null); setLiveSilence(0)
   }, [])
 
   const recording = phase === 'recording'
   const busy = ['starting', 'stopping', 'transcribing', 'sending'].includes(phase)
+  const liveCard = liveView(live, { silenceSec: liveSilence })
 
   return createElement('div', { ref: rootRef, style: styles.root },
     createElement('button', {
@@ -259,6 +348,35 @@ export function QuickPanel({ sessionId } = {}) {
 
       PHASE_TEXT[phase]
         ? createElement('div', { style: styles.muted }, phase === 'transcribing' ? `识别中… 已等待 ${formatDuration(elapsed)}` : PHASE_TEXT[phase])
+        : null,
+
+      // 字幕区（R-02/R-03）：定稿强、中间结果弱；降级后冻结并说明
+      liveCard
+        ? createElement('div', { style: styles.liveBox },
+            createElement('div', { style: styles.row },
+              createElement('span', { style: liveCard.tone === 'error' ? styles.error : styles.muted }, liveCard.statusText),
+              createElement('span', { style: styles.muted }, `${liveCard.elapsedText} · ${liveCard.chars} 字`),
+            ),
+            ...liveCard.finals.map((item) => createElement('div', { key: item.key, style: styles.liveFinal },
+              createElement('span', { style: styles.liveTime }, item.timeText),
+              item.text,
+            )),
+            liveCard.partial
+              ? createElement('div', { key: 'partial', style: styles.livePartial }, liveCard.partial)
+              : null,
+            liveCard.waiting
+              ? createElement('div', { style: styles.muted }, '等待语音…')
+              : null,
+            liveCard.blank && !liveCard.waiting
+              ? createElement('div', { style: styles.muted }, liveCard.state === 'finalizing' ? '正在定稿…' : '正在聆听…')
+              : null,
+            liveCard.frozen
+              ? createElement('div', { style: styles.muted }, '字幕已停止更新')
+              : null,
+            liveCard.tone === 'error'
+              ? createElement('div', { style: styles.error }, '流式已降级：停录后会改用整段音频识别，字幕不再更新')
+              : null,
+          )
         : null,
 
       // 当前这场会议：名字可编辑；未命名时以开始时间占位
