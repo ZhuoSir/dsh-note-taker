@@ -1,4 +1,4 @@
-﻿# 里程碑 v1.0.0
+# 里程碑 v1.0.0
 
 > 状态: 进行中 | 目标日期: 未定 | 负责人: KypCa
 
@@ -6,12 +6,12 @@
 
 | spec | spec版本 | 状态 | SQL件 | 配置项 | 备注 |
 |---|---|---|---|---|---|
-| specs/20261110_project-skeleton | v1.0.0 | 已合并 | 0 | 0 | 基本链路：录音 → 转写 → 纪要；T-11 演练延期补验，见该 spec 的 completion.md |
+| specs/20261110_project-skeleton | v1.0.0 | 已合并 | 0 | 0 | 基本链路：录音 → 转写 → 纪要；T-11 已于 2026-11-11 用户实机补验通过 |
 | specs/20261110_add-cloud-asr | v1.1.0 | 已合并 | 0 | 0 | 云端 ASR（百炼 qwen-audio-3.1-asr-flash，非实时 HTTP + 说话人分离，CR-01 改协议）；本地引擎保留 |
-| specs/20261110_meeting-page | v1.0.0 | 已合并 | 0 | 0 | 会记页面基础设施（插槽/路由/构建链/宿主适配），来自 BL-01 |
-| specs/20261110_meeting-console | v1.0.0 | 已合并 | 0 | 0 | 会记工作台：设置页=配置+历史纪要；会话卡片=录音→人确认→交会话生成纪要 |
-| specs/20261110_meeting-workspace-output | v1.0.0 | 已合并 | 0 | 0 | 产物写入会话工作区 meetings/，交接改为引用 md 路径 |
-| specs/20261110_meeting-agent-import | v1.0.0 | 已合并 | 0 | 0 | 会话驱动导入：新增 meeting_import 工具，音频→转写→产物路径，纪要由 agent 自己读写 |
+| specs/20261110_meeting-page | v1.0.0 | 已合并 | 0 | 0 | 会记页面基础设施（插槽/路由/构建链/宿主适配），来自 BL-01；T-09 已补验 |
+| specs/20261110_meeting-console | v1.0.0 | 已合并 | 0 | 0 | 会记工作台：设置页=配置+历史纪要；会话卡片=录音→人确认→交会话生成纪要；T-10 已补验 |
+| specs/20261110_meeting-workspace-output | v1.0.0 | 已合并 | 0 | 0 | 产物写入会话工作区 meetings/，交接改为引用 md 路径；T-08 已补验 |
+| specs/20261110_meeting-agent-import | v1.0.0 | 已合并 | 0 | 0 | 会话驱动导入：新增 meeting_import 工具，音频→转写→产物路径，纪要由 agent 自己读写；5/5 完成 |
 
 ## 纳入缺陷（随版修复批）
 

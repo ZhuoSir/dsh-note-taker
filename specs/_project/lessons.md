@@ -1,4 +1,4 @@
-﻿# 项目坑台账（Lessons）
+# 项目坑台账（Lessons）
 
 > L-xx 永久编号不复用 | 每条 ≤10 行 | active 条目在每次 Plan 被强制核对（bryanchen-spec §3）
 > 边界：产品缺陷进 bugs.md，过程/工具/环境/判断跟头进这里，互相引用不混记
@@ -187,3 +187,45 @@
 - 状态: active
 - 复发: ×1
 - 关联: `lib/tools.js` 的 `TEXT_OUTPUT`；tests/tools.test.js 对应用例
+
+## L-14 用 PowerShell 给 JS/JSX 源码做批量替换会吃掉模板字符串反引号
+
+- 分类: 工具链
+- 触发场景: 用 `pwsh` 的 `-replace` / 字符串替换批量改 `src/client/*.jsx`
+- 坑: 反引号在 PowerShell 双引号串里是转义符，`\`2px solid ${color}\`` 被替换成 `2px solid `，
+  模板插值整段消失；esbuild 连报语法错，产物与源码一度对不上。一次会话内复发 4 次
+  （meeting-console 3 次、本轮收尾 1 次把 4 份 tasks.md 写成 3 字节）。
+- 根因: 两层转义叠加（PowerShell 字符串 + JS 模板字面量），且替换是**静默**的——不报错、只改坏。
+- 防再犯规则: 改 JS/JSX/TS 源码一律用 `edit`（字面量替换）或 Node 脚本（`fs` + `String.replaceAll`），
+  不用 PowerShell `-replace`；批量改文档同样用 Node，改完立刻 `git diff --stat` 核对行数，
+  出现「整文件只剩几字节」立即 `git checkout --` 恢复。
+- 状态: active
+- 复发: ×4
+- 关联: meeting-console changelog；本轮 tasks.md 事故（已从 HEAD 恢复）
+
+## L-15 同一配置「展示值」与「执行值」分开读，会显示错引擎
+
+- 分类: 判断
+- 触发场景: 设置页/卡片显示当前引擎，而转写按每次请求重读配置执行
+- 坑: 界面显示「本地」、实际走云端。`capabilities()` 读的是 **apply 时**从环境变量解析的
+  `config.engine`（当时未设 → local），执行路径读的是「页面配置 > 环境变量 > 默认」的生效值
+  （cloud）。两处都「没错」，只是数据源不同。
+- 根因: 配置有两个生命周期——启动快照 vs 每请求解析；展示层误用了快照。
+- 防再犯规则: 凡「展示值」，必须与执行路径共用同一个解析函数（本项目 `resolveDefaultEngine({source})`），
+  并在返回值里带上来源字段（`engineSource: file/env/default`）便于自查。
+- 状态: active
+- 复发: ×1
+- 关联: `lib/service.js` capabilities；tests 对应用例
+
+## L-16 外部直接改产物文件会让状态位失真，真相要按文件推导
+
+- 分类: 判断
+- 触发场景: 纪要先由插件生成后改为「会话 agent 直接写进产物 md」，而列表按 `status.minutes` 过滤
+- 坑: 文件里已有纪要，设置页历史列表仍显示 0——`status.minutes` 停在 pending，
+  因为写文件的是 agent，没有任何代码去改状态位。
+- 根因: 两套真相并存（文件内容 vs 索引里的状态缓存），外部改动只更新了前者。
+- 防再犯规则: 只要存在「外部可直接修改」的产物，状态就必须从产物**推导**而不是缓存；
+  需要缓存时加自愈：读取时发现不一致就修正并落盘，日志记一行 `状态自愈`。
+- 状态: active
+- 复发: ×2（meeting-workspace-output、meeting-agent-import 各一次）
+- 关联: `detectMinutes()`；list 路由；设置页过滤条件 `hasMinutes || status==='done'`
