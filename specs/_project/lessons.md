@@ -229,3 +229,19 @@
 - 状态: active
 - 复发: ×2（meeting-workspace-output、meeting-agent-import 各一次）
 - 关联: `detectMinutes()`；list 路由；设置页过滤条件 `hasMinutes || status==='done'`
+
+## L-17 受限沙箱下 `npm run verify` 会因 spawn EPERM 假红
+
+- 分类: 环境
+- 触发场景: 在 workspace-write 沙箱里跑 `npm run verify`（或 `node --test`、`node scripts/build-client.mjs`）
+- 坑: 全部用例报 `✖ ... spawn EPERM`、构建报 `构建校验: 构建失败`，看起来像代码或测试坏了；
+  实际是沙箱禁止子进程用管道 stdio——esbuild 的服务进程、`node --test` 的每文件子进程、
+  Python sidecar 读取输出，三者都走管道。
+- 根因: 沙箱对命名管道/管道 stdio 的限制，与被测代码无关。结构检查（纯读文件）能过，
+  所以「41 项通过 + 全部 ✖」这种组合基本就是这个坑。
+- 防再犯规则: 看到「结构检查通过但所有测试/构建同时 EPERM」时，先判定为沙箱限制而不是代码问题；
+  需要完整校验时在 `danger-full-access` 下跑，或 `node --test --test-isolation=none` 规避
+  测试子进程（但 sidecar 与 esbuild 仍需要放行）。
+- 状态: active
+- 复发: ×1
+- 关联: 本轮收尾首次完整 verify 时踩到；用户随后把会话策略改为 danger-full-access
