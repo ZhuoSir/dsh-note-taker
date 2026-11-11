@@ -4,6 +4,8 @@
 - 边录边写（不缓存全量，长会议内存不涨——plan 决策 1 与风险节）
 - 读 stdin，收到 stop/q/EOF 即收尾（Windows 下子进程收不到可靠 SIGINT）
 - stdout 只打一行 JSON；过程日志走 stderr
+- 可选 `--pcm-out`：同一循环把 s16le 原始 PCM 追加写到旁路文件，供流式识别 tail 读取
+  （决策 2：不改 stdout 契约，不额外开管道）
 
 错误码：E_DEP 缺 sounddevice / E_DEVICE 无设备或设备被占用 / E_STATE 参数非法
 """
@@ -45,6 +47,7 @@ def main():
     parser.add_argument('--device', default=None, help='设备索引或名称；缺省用默认输入设备')
     parser.add_argument('--samplerate', type=int, default=DEFAULT_SAMPLERATE)
     parser.add_argument('--channels', type=int, default=DEFAULT_CHANNELS)
+    parser.add_argument('--pcm-out', default=None, help='旁路写入 s16le 原始 PCM（流式识别 tail 用）')
     args = parser.parse_args()
 
     if args.samplerate <= 0 or args.channels <= 0:
@@ -82,6 +85,20 @@ def main():
     block_frames = int(args.samplerate * CHUNK_SECONDS)
     written = 0
 
+    # 旁路 PCM：写失败不影响 WAV（降级时 WAV 才是兜底），只告警一次
+    pcm_file = None
+    pcm_path = None
+    pcm_bytes = 0
+    pcm_broken = False
+    if args.pcm_out:
+        pcm_path = os.path.abspath(args.pcm_out)
+        os.makedirs(os.path.dirname(pcm_path), exist_ok=True)
+        try:
+            pcm_file = open(pcm_path, 'wb')  # noqa: SIM115 —— 生命周期横跨整个录音循环
+        except OSError as error:
+            log(MODULE, 'PCM 旁路打开失败，仅录 WAV', path=pcm_path, error=str(error))
+            pcm_path = None
+
     try:
         with wave.open(out_path, 'wb') as wav:
             wav.setnchannels(args.channels)
@@ -106,6 +123,19 @@ def main():
                         log(MODULE, '录音缓冲溢出（不影响写入，可能丢帧）')
                     wav.writeframes(data)
                     written += len(data)
+                    if pcm_file is not None and not pcm_broken:
+                        try:
+                            pcm_file.write(data)
+                            pcm_file.flush()
+                            pcm_bytes += len(data)
+                        except OSError as error:
+                            pcm_broken = True
+                            log(MODULE, 'PCM 旁路写入失败，已停用（WAV 不受影响）', error=str(error))
+                            try:
+                                pcm_file.close()
+                            except OSError:
+                                pass
+                            pcm_file = None
     except Exception as error:
         # PortAudioError 的典型来源：设备被占用、不支持该采样率
         if os.path.exists(out_path) and os.path.getsize(out_path) <= 44:
@@ -119,8 +149,15 @@ def main():
     frames = written // (2 * args.channels)
     duration = round(frames / args.samplerate, 2)
 
-    log(MODULE, '录音结束', duration=duration, bytes=written, elapsed=elapsed)
-    emit({
+    if pcm_file is not None:
+        try:
+            pcm_file.close()
+        except OSError:
+            pass
+        pcm_file = None
+
+    log(MODULE, '录音结束', duration=duration, bytes=written, elapsed=elapsed, pcmBytes=pcm_bytes)
+    payload = {
         'ok': True,
         'path': out_path,
         'durationSec': duration,
@@ -128,7 +165,12 @@ def main():
         'sampleRate': args.samplerate,
         'channels': args.channels,
         'deviceCandidates': [item['name'] for item in inputs],
-    })
+    }
+    if pcm_path:
+        payload['pcmPath'] = pcm_path
+        payload['pcmBytes'] = pcm_bytes
+        payload['pcmBroken'] = pcm_broken
+    emit(payload)
 
 
 if __name__ == '__main__':

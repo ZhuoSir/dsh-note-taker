@@ -11,7 +11,7 @@
   日志断言: 不适用（纯函数，无副作用）
   验收标准: 8 例全绿；未配置时 `enabled=false`，与改造前行为一致
 
-- [ ] T-02 录音 sidecar 旁路 PCM（`py/record.py --pcm-out`）
+- [x] T-02 录音 sidecar 旁路 PCM（`py/record.py --pcm-out`）
   关联: R-01
   依赖: 无
   验证方式: 冒烟录音 3 秒——WAV 与 PCM 同时生成，PCM 字节数 = 32000 × 秒数（±1 块）；不传 `--pcm-out` 时**不产生** PCM 文件，WAV 与改造前一致；写 PCM 失败不中断 WAV
