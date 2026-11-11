@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict'
+import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -188,7 +188,12 @@ test('卡片：录音中 / 识别中 / 确认区 三种阶段都能渲染', () =
   // 面板打开 + 录音中
   let flat = JSON.stringify(withOverrides({ 0: true, 5: 'recording', 8: 42 })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
   assert.match(flat, /停止并识别/)
-  assert.match(flat, /● 0:42/)
+  // 入口（R-01/R-02/R-03）：无边框、绿点 + 文字 + 计时，不再用 ● 字符表达录制中
+  assert.doesNotMatch(flat, /●/, '入口不再渲染 ● 字符')
+  assert.match(flat, /"children":\["0:42"\]/, '录制中入口显示计时')
+  assert.match(flat, /"background":"#2f9e63"/, '录制中圆点为绿色令牌')
+  assert.match(flat, /"aria-expanded":true/)
+  assert.match(flat, /"border":"none"/, '入口无按钮边框')
 
   // 识别中
   flat = JSON.stringify(withOverrides({ 0: true, 5: 'transcribing' })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
@@ -209,4 +214,11 @@ test('卡片：录音中 / 识别中 / 确认区 三种阶段都能渲染', () =
   flat = JSON.stringify(withOverrides({ 0: true, 5: 'error', 6: { meetingId: 'm-1' }, 3: '识别失败' })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
   assert.match(flat, /重试识别/)
   assert.match(flat, /识别失败/)
+
+  // 收起状态（R-05）：卡片不渲染，但入口常驻，且为灰点、不带计时
+  flat = JSON.stringify(withOverrides({ 0: false })(), (k, v) => (typeof v === 'function' ? '[fn]' : v))
+  assert.match(flat, /"children":\["会记"\]/, '收起时入口仍在')
+  assert.match(flat, /"aria-expanded":false/)
+  assert.doesNotMatch(flat, /"children":\["0:\d{2}"\]/, '未录音不显示计时')
+  assert.doesNotMatch(flat, /开始录音/, '收起时不渲染卡片内容')
 })

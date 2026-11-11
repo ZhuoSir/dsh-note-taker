@@ -1,6 +1,6 @@
 # 任务：meeting-trigger
 
-> 版本: v0.1.0 | 状态: 待确认 | 更新: 2026-11-12 | 确认人: | 确认日期:
+> 版本: v0.1.0 | 状态: 已确认 | 更新: 2026-11-12 | 确认人: 陈卓 | 确认日期: 2026-11-12
 > 需求: `requirements.md` v0.1.0（已确认）| 方案: `plan.md` v0.1.0（已确认）
 > 施工分支: `feature/meeting-trigger`（自 `1.1.0` 切出，完成后 `--no-ff` 合回）
 
@@ -32,7 +32,7 @@
 
 ## 任务清单
 
-- [ ] T-01 `logic.js` 新增 `triggerView` 与单测
+- [x] T-01 `logic.js` 新增 `triggerView` 与单测 [node --test tests/page-logic.test.js → 14 pass]
   依赖: 无（可先做）
   验收标准: `triggerView({recording:false})` → `tone='muted'`、`timing=''`、`label='会记'`；
   `triggerView({recording:true, seconds:42})` → `tone='success'`、`timing='0:42'`；
@@ -41,7 +41,7 @@
   断言对象逐字段 `deepEqual`；再跑一次确保现有 12 个导出未被破坏。
   日志断言: 无（纯函数，不涉日志）
 
-- [ ] T-02 `QuickPanel.jsx` 入口改造（DOM + 样式 + aria）
+- [x] T-02 `QuickPanel.jsx` 入口改造（DOM + 样式 + aria）[产物断言：`border:"none"`、圆点 8px、`aria-expanded`]
   依赖: T-01
   验收标准: 入口渲染为 `button` 内含 `span[dot]` + `span[aria-label 文字]` + 可选 `span[timing]`；
   `styles.trigger` 为常量且无 `border`/`background` 填充/内边距；新增 `styles.dot(tone)`（8px 圆、
@@ -51,7 +51,7 @@
   `border` 已不在入口样式；视觉真机见 T-07。
   日志断言: 无（UI 渲染）
 
-- [ ] T-03 卡片收起记忆与 Esc（R-04 / R-05 / R-06）
+- [x] T-03 卡片收起记忆与 Esc（R-04 / R-05 / R-06）[记忆抽到 logic.js 的 readPanelOpen/writePanelOpen 并单测 3 例；Esc 与点外部同一 effect]
   依赖: T-02
   验收标准: `localStorage` 键 `dsh-note-taker:panel-open`；`useState` 初始化读记忆，缺省/读失败为
   `false`（收起）；每次都 toggle 后写回；读写均 `try/catch` 吞异常；`Esc` 仅在 `open` 时挂载、
@@ -60,7 +60,7 @@
   另在 Node 里直接调用 `readStoredOpen`/写路径的等价逻辑（用假 storage 注入）。
   日志断言: 无（方案 §四已豁免：UI 状态无副作用）
 
-- [ ] T-04 同步渲染断言与阶段用例（R-07）
+- [x] T-04 同步渲染断言与阶段用例（R-07）[`/● 0:42/` 改为结构断言（无 ●、含 0:42、绿点 #2f9e63、border none、aria-expanded）；新增收起态一例 → 8 pass]
   依赖: T-02, T-03
   验收标准: `tests/page-render.test.js:191` 的 `/● 0:42/` 改为断言新结构（圆点元素 + `0:42` 文本，
   且 `●` 不再出现）；槽位注释（L162）仍成立；录音中/识别中/确认区三用例继续通过；
@@ -68,21 +68,21 @@
   验证方式: `node --test tests/page-render.test.js`，贴真实输出。
   日志断言: 无
 
-- [ ] T-05 重建客户端产物并提交
+- [x] T-05 重建客户端产物并提交 [构建校验: lib/client.js 可重复构建（14e953214ad3）；tests 350 / pass 350 / fail 0]
   依赖: T-04
   验收标准: `lib/client.js` 与源码一致；`npm run verify` 输出「构建校验: lib/client.js 可重复构建（<新哈希>）」；
   全量 `tests` 通过且 `fail 0`。
   验证方式: `npm run verify` 贴真实输出（结构检查项数、构建哈希、tests/pass/fail）。
   日志断言: 无
 
-- [ ] T-06 README 入口描述同步
+- [x] T-06 README 入口描述同步 [第 52/106 行改为「图标 + 文字」「圆点变绿、显示计时」；grep「会记」按钮」无残留]
   依赖: T-02
   验收标准: `README.md` 第 52 行「有「会记」按钮」与第 106 行同类表述改为「图标 + 文字」的描述，
   与新入口一致；不新增与实现不符的说法。
   验证方式: `grep -n "按钮" README.md` 复核，贴输出。
   日志断言: 无
 
-- [ ] T-07 真机验证（浅色/深色主题）
+- [ ] T-07 真机验证（浅色/深色主题）— 待用户在桌面版重启后确认（代码侧证据：profile link 指向本仓、产物哈希 14e953214ad3 与本仓一致）
   依赖: T-05
   验收标准: 桌面版（或 web）里：待机为灰点+「会记」无边框；开始录音后 3 秒内变绿并显示计时；
   停止后回灰、计时消失；点入口开卡片、点外部与 Esc 收起；收起后刷新页面仍收起；

@@ -10,8 +10,12 @@ import {
   needsCloudConsent,
   paginateTranscript,
   statusMeta,
+  PANEL_STATE_KEY,
+  readPanelOpen,
   toDetailView,
   toListRows,
+  triggerView,
+  writePanelOpen,
 } from '../src/client/logic.js'
 
 const MEETING = {
@@ -120,4 +124,63 @@ test('健康检查 → 按钮可用性', () => {
   assert.equal(caps.cloudReady, false)
   assert.equal(caps.recordingReady, true)
   assert.deepEqual(caps.localModels, ['tiny'])
+})
+
+test('入口渲染数据：待机灰点、不显示计时', () => {
+  assert.deepEqual(triggerView(), {
+    tone: 'muted', label: '会记', timing: '', expanded: false, title: '会记', ariaLabel: '会记，打开面板',
+  })
+  // 非录音时即便有秒数也不显示计时（R-03）
+  assert.equal(triggerView({ recording: false, seconds: 42 }).timing, '')
+})
+
+test('入口渲染数据：录制中绿点 + 计时 + 状态文字（不只靠颜色）', () => {
+  const view = triggerView({ recording: true, seconds: 42 })
+  assert.equal(view.tone, 'success')
+  assert.equal(view.timing, '0:42')
+  assert.equal(view.label, '会记')
+  assert.match(view.title, /录制中 0:42/)
+  assert.match(view.ariaLabel, /录制中 0:42/)
+})
+
+test('入口渲染数据：展开态跟随 open', () => {
+  assert.equal(triggerView({ open: true }).expanded, true)
+  assert.equal(triggerView({ open: false }).expanded, false)
+  // 计时与开合互不影响
+  const view = triggerView({ recording: true, seconds: 95, open: true })
+  assert.equal(view.timing, '1:35')
+  assert.equal(view.expanded, true)
+})
+
+// 假存储：既能记录写入，也能模拟抛异常（隐私模式）
+function fakeStorage({ fail = false } = {}) {
+  const data = new Map()
+  return {
+    data,
+    getItem: (key) => { if (fail) throw new Error('blocked'); return data.has(key) ? data.get(key) : null },
+    setItem: (key, value) => { if (fail) throw new Error('quota'); data.set(key, value) },
+  }
+}
+
+test('卡片记忆：无记忆/无存储时按收起（R-05 不阻塞）', () => {
+  assert.equal(readPanelOpen(null), false)
+  assert.equal(readPanelOpen(fakeStorage()), false)
+  assert.equal(readPanelOpen(fakeStorage({ fail: true })), false, '读抛异常按收起')
+})
+
+test('卡片记忆：写入后能读回，键名固定', () => {
+  const storage = fakeStorage()
+  assert.equal(writePanelOpen(true, storage), true)
+  assert.equal(storage.data.get(PANEL_STATE_KEY), '1')
+  assert.equal(readPanelOpen(storage), true)
+
+  assert.equal(writePanelOpen(false, storage), true)
+  assert.equal(storage.data.get(PANEL_STATE_KEY), '0')
+  assert.equal(readPanelOpen(storage), false, '收起态被记住')
+})
+
+test('卡片记忆：写失败只是不记忆，不抛异常', () => {
+  const storage = fakeStorage({ fail: true })
+  assert.equal(writePanelOpen(true, storage), false)
+  assert.equal(readPanelOpen(null), false)
 })

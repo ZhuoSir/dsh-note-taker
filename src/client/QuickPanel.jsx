@@ -13,7 +13,7 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import { createApi } from './api.js'
 import { buildHandoffMessage } from './handoff.js'
 import { copyText, hostStatusText, sendToSession } from './host.js'
-import { STREAM_CONSENT_TEXT, capabilitiesFrom, errorText, formatDateTime, formatDuration, liveView, needsStreamConsent, shouldPollLive } from './logic.js'
+import { STREAM_CONSENT_TEXT, capabilitiesFrom, errorText, formatDateTime, formatDuration, liveView, needsStreamConsent, readPanelOpen, shouldPollLive, triggerView, writePanelOpen } from './logic.js'
 import { LIVE_POLL_MS } from './logic.js'
 import { theme } from './theme.js'
 
@@ -22,11 +22,17 @@ const TRANSCRIBE_TIMEOUT_MS = 15 * 60 * 1000
 
 const styles = {
   root: { position: 'relative', display: 'inline-block' },
-  trigger: (active) => ({
-    padding: '4px 10px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
-    border: `1px solid ${active ? theme.accentBorder : theme.border}`,
-    background: active ? theme.accentBg : 'transparent', color: theme.text,
+  // 入口：图标 + 文字，无按钮外观（R-01）；开合状态由 aria-expanded 表达，不靠边框
+  trigger: {
+    display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0,
+    border: 'none', background: 'transparent', color: theme.textSecondary,
+    cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', lineHeight: '16px',
+  },
+  dot: (tone) => ({
+    width: 8, height: 8, borderRadius: 999, display: 'inline-block', flex: '0 0 auto',
+    background: tone === 'success' ? theme.success : theme.textMuted,
   }),
+  timing: { color: theme.textSecondary, fontVariantNumeric: 'tabular-nums' },
   panel: {
     position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 40, width: 380,
     padding: 12, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 8,
@@ -65,7 +71,8 @@ const PHASE_TEXT = {
 }
 
 export function QuickPanel({ sessionId } = {}) {
-  const [open, setOpen] = useState(false)
+  // 槽位 0 仍是 open：初始化读记忆，切换时写记忆，不新增 useState（保测试槽位顺序）
+  const [open, setOpen] = useState(readPanelOpen)
   const [rows, setRows] = useState([])
   const [health, setHealth] = useState(null)
   const [error, setError] = useState(null)
@@ -108,12 +115,22 @@ export function QuickPanel({ sessionId } = {}) {
     return () => clearInterval(timer)
   }, [open, refresh])
 
-  // 点面板外部收起
+  // 点面板外部或按 Esc 收起（R-04）：两个监听合成一个 effect，Esc 不阻止默认行为
   useEffect(() => {
     if (!open) return undefined
-    const onDown = (event) => { if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false) }
-    if (typeof document !== 'undefined') document.addEventListener('mousedown', onDown)
-    return () => { if (typeof document !== 'undefined') document.removeEventListener('mousedown', onDown) }
+    const close = () => { setOpen(false); writePanelOpen(false) }
+    const onDown = (event) => { if (rootRef.current && !rootRef.current.contains(event.target)) close() }
+    const onKey = (event) => { if (event.key === 'Escape') close() }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('mousedown', onDown)
+      document.addEventListener('keydown', onKey)
+    }
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('mousedown', onDown)
+        document.removeEventListener('keydown', onKey)
+      }
+    }
   }, [open])
 
   // 录音计时
@@ -316,12 +333,21 @@ export function QuickPanel({ sessionId } = {}) {
   const recording = phase === 'recording'
   const busy = ['starting', 'stopping', 'transcribing', 'sending'].includes(phase)
   const liveCard = liveView(live, { silenceSec: liveSilence })
+  const trigger = triggerView({ recording, seconds, open })
 
   return createElement('div', { ref: rootRef, style: styles.root },
     createElement('button', {
-      type: 'button', style: styles.trigger(open || recording), title: '会记',
-      onClick: () => setOpen((value) => !value),
-    }, recording ? `● ${formatDuration(seconds)}` : '会记'),
+      type: 'button',
+      style: styles.trigger,
+      title: trigger.title,
+      'aria-label': trigger.ariaLabel,
+      'aria-expanded': trigger.expanded,
+      onClick: () => setOpen((value) => { const next = !value; writePanelOpen(next); return next }),
+    },
+      createElement('span', { key: 'dot', style: styles.dot(trigger.tone), 'aria-hidden': 'true' }),
+      createElement('span', { key: 'label' }, trigger.label),
+      trigger.timing ? createElement('span', { key: 'timing', style: styles.timing }, trigger.timing) : null,
+    ),
 
     open ? createElement('div', { style: styles.panel },
       createElement('div', { style: styles.row },
