@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict'
+import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { buildRoutes } from '../lib/routes.js'
@@ -52,14 +52,14 @@ function routeByName(routes, name) {
   return routes.find((item) => item.path === `/note-taker/${name}`)
 }
 
-test('注册九条 exact 路由', () => {
+test('注册十条 exact 路由', () => {
   const { service } = fakeService()
   const routes = buildRoutes({ service, logger: loggerSpy() })
 
-  assert.equal(routes.length, 9)
+  assert.equal(routes.length, 10)
   assert.deepEqual(routes.map((item) => item.path).sort(), [
     '/note-taker/config', '/note-taker/detail', '/note-taker/health', '/note-taker/import', '/note-taker/label', '/note-taker/list',
-    '/note-taker/minutes', '/note-taker/record', '/note-taker/transcribe',
+    '/note-taker/live', '/note-taker/minutes', '/note-taker/record', '/note-taker/transcribe',
   ])
   assert.ok(routes.every((item) => item.kind === 'exact'))
 })

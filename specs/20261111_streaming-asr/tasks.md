@@ -27,7 +27,7 @@
   日志断言: 契约测试中捕获日志——须出现「流式会话建立, model=…, sampleRate=16000」与（降级用例）「降级, 原因=reconnect_exceeded」；全文不得出现 Key 字符串
   验收标准: ≥10 例全绿；假 WS 覆盖重连与超时两条异常路径；真实调用只在 T-09 手工验证
 
-- [ ] T-04 liveState 与 `GET /note-taker/live`
+- [x] T-04 liveState 与 `GET /note-taker/live`
   关联: R-02, R-03, R-04
   依赖: T-03
   验证方式: 单测 ≥6 例——①无录音时返回 `state=idle`；②流式中返回 partial/finals/elapsedSec/chars；③非法 id（含 `../`）被拒；④查询非当前录音返回 idle；⑤状态机顺序 connecting→streaming→finalizing→done；⑥chars 与 finals 文本一致
