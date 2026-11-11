@@ -1,10 +1,10 @@
-> 版本: v0.1.0 | 状态: 草稿 | 更新: 2026-11-11
+> 版本: v1.0.0 | 状态: 已确认 | 更新: 2026-11-11 | 确认人: 陈卓 | 确认日期: 2026-11-11
 
 # 任务清单：streaming-asr
 
 ## 1. 基础（配置与采集）
 
-- [ ] T-01 流式配置解析 `resolveStreamConfig`
+- [x] T-01 流式配置解析 `resolveStreamConfig`
   关联: R-09, R-07
   依赖: 无
   验证方式: 单测 ≥8 例——①未做任何配置时 `enabled=false` 且 `available=false`；②`streamEnabled=true` 但缺 Key → `available=false` 且带原因；③端点缺省由 cloud endpoint 的 host 推导为 `wss://<host>/api-ws/v1/realtime`；④显式端点优先于推导；⑤环境变量可覆盖；⑥页面配置优先于环境变量；⑦模型名空白/非法 → 校验失败并指名字段；⑧`source` 字段正确反映 file/env/default
