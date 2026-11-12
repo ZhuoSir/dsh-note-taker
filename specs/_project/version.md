@@ -51,3 +51,11 @@ meeting-page、meeting-console、meeting-workspace-output、meeting-agent-import
 - `specs/20261112_meeting-trigger` 开 CR-01（minor，待用户拍板档位）：改 R-05（撤销跨会话展开记忆）、
   新增 R-10（卡片不得遮挡输入区），新增任务 T-08~T-10
 - 新 spec `specs/20261112_recording-decouple`（挂 v1.1.0，第 2 个需求）：录音与会话解耦 + 中断自愈
+
+### 2026-11-11 追加
+
+- CR-01（minor）：卡片不再遮挡输入区；撤销跨会话开合记忆；原生 confirm 换页面内确认条
+- CR-02（minor）：入口从 `conversation.input.right` 搬到 `sidebar.panellist`（order 30），
+  新增全局「会记」页面与 `GET /note-taker/record` 状态接口
+- 期望产出: 2 需求（meeting-trigger v0.3.0、recording-decouple v0.1.0）→ 需求数从 2 起
+

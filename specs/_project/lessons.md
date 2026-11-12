@@ -353,3 +353,181 @@
 - 根因: 客户端测试的输入是产物（为了同时验证构建产物可用），源码改动对测试不可见
 - 纠正: 改 `src/client/**` 后的正确顺序是 **build → test → 改断言**；`npm run verify` 里的
   「构建可重复」校验能兜住「忘了提交产物」，但兜不住「先测试后构建」的假绿
+
+### L-26 Electron 里不要用原生 `window.confirm` / `alert` / `prompt`
+
+原生模态会打断渲染进程的输入法（IME）编辑上下文。症状极具误导性：输入框聚焦正常、
+`keydown` 正常送达、`defaultPrevented=false`，但**字就是进不去**，且要调整窗口大小
+（重建渲染树）才恢复。本项目因此踩了 BUG-01/BUG-03，并连续两轮改错方向（改了两次卡片定位）。
+**规矩**：插件里所有二次确认都用页面内 UI。
+
+### L-27 判断「点击无效」必须先取三组数据，再改代码
+
+三种完全不同的病因表现为同一个「点不进去」：
+
+| 证据 | 病因 |
+|---|---|
+| `elementFromPoint` 命中别的元素 | 遮挡 → 改层级/锚点 |
+| `activeElement` 不是目标元素 | 焦点被抢 → 查谁抢的 |
+| `activeElement` 是目标、`keydown` 无 `prevented` | 输入法/编辑器上下文坏了 → 查原生弹窗 |
+
+`elementFromPoint` + `focusin/focusout/keydown` 监听 + 一次对照实验（开/关某个功能各试一次），
+十分钟就能定性；靠猜会连改三轮。**先测量，后动手。**
+
+## L-28 cordis 里读未声明的 ctx 服务会直接抛，`?.` 救不了
+
+现象：`main` 插槽的页面组件一片空白，宿主控制台报
+
+```
+Error: cannot get property "layout" without inject
+ERROR: slot entry crashed in 'main': ...
+```
+
+我写的是 `typeof ctx.layout?.selectPanel === 'function'`，以为可选链能兜住——
+没用：`ctx.layout` 这个**属性读取本身**就触发 cordis 的 inject 检查并抛错，
+`?.` 在抛错之后才有机会生效，于是整个插槽渲染崩掉（宿主只说 "slot entry crashed"，主区域空白）。
+
+正确做法：把服务读取包在 `try { ctx.layout } catch { undefined }` 里，取不到就降级；
+或者老实声明 `inject: ['layout']`。
+
+## L-29 本版 cordis 不认 `inject: { required, optional }`
+
+想把 `layout` 声明成可选注入，写了对象形式，结果整个 web 壳起不来：
+
+```
+ERROR: web boot: 1 entry did not activate
+dsh-note-taker: pending (waiting for services: required, optional)
+```
+
+它把对象**当成了服务名集合**——`required` / `optional` 被当成两个待等服务的名字。
+结论：这个版本只接受数组形式 `inject: ['slots']`；可选依赖只能靠 try/catch 自己降级，
+别用对象形式（一旦服务名对不上，插件永不激活，连累整个 UI 启动失败）。
+
+## L-30 组件拆成「卡片 + 页面」两种形态时，初始化 effect 不能挂在 open 上
+
+`QuickPanel` 原来是浮层卡片，初始化（拉 health / list）写在 `useEffect(() => { if (!open) return; refresh() }, [open])`。
+加页面模式后 `open` 永远是 false，于是页面里**永远不拉数据**——表现为「云端未配置 + 开始录音禁用」，
+看起来像配置丢了，其实是初始化根本没跑。
+
+教训：组件有多种挂载形态时，判断条件要写成「可见」而不是某一种形态的私有状态
+（`const visible = page || open`）；同时「点外部收起」这类浮层专属行为要显式排除页面模式。
+
+## L-31 「字段名猜错了」不会报错，只会让功能静默失效
+
+`recordState()` 里我写 `streaming: Boolean(recording.stream?.engine)`，
+而 `recordStart` 实际存的是 `state.stream = { session, tail, config }`——**没有 `engine` 字段**。
+不报错、不抛异常，接口照常 200，只是 `streaming` 永远是 `false`。
+
+后果：切走再切回会记页面时，页面以为「这不是流式录音」，于是不启动字幕轮询，
+用户看到的就是「识别内容的框没了」。真正的主因在客户端（重挂载后丢状态），
+但这个字段错误让客户端连补救的机会都没有。
+
+教训：跨层传状态时，**写字段的那一刻就去读一遍生产方到底存了什么**；
+用 `?.` 读可能不存在的字段，等于把拼写错误变成永久 `false`。
+
+## L-32 重挂载即失忆：临时 UI 状态必须能从宿主重建
+
+字幕框、当前会议、录音态原本都只存在组件 state 里。切会话 → 组件卸载 → 全丢。
+即使录音还在跑，回来也是「未录音」的样子。
+
+正确姿势：**组件是视图，真相在宿主**。挂载时用全局接口（`GET /record`）把
+`phase / current / streaming` 重建出来，然后照常轮询；组件 state 只做缓存。
+
+验证方式（可复用）：CDP 里开 `Network.enable`，数 `/note-taker/live` 请求——
+录音中理应每 0.5s 一条，切走后归零，切回后重新出现。这比「用眼睛看框还在不在」可靠得多。
+
+## L-33 面板位拿不到会话，但「当前会话」在 localStorage 里
+
+`main` 槽的面板收到的是**空 props**（宿主源码就是 `renderSlot("main", {}, { entryKey })`），
+搬到侧栏之后，原先靠 `conversation.input.right` 注入的 `sessionId` 彻底没了，
+于是「交给会话」卡在「拿不到当前会话 id」。
+
+真相在宿主的 workspace 选择里，它持久化在 localStorage：
+`dsh.sessions.current` → `{"sessionId":"session-b3e22b42-…"}`。
+
+另外，会话正开着时 `sessions.scope(id)` 才拿得到作用域；正在看会记页面时主区域被面板占着，
+作用域可能已经释放——这时用 `sessions.using(id, {source}, op)` 临时借一个（内部 retain → open →
+release），在回调里发完就还。
+
+## L-34 静音录音会让云端 ASR 直接 400，验证要准备真实语音
+
+8 秒静音的录音，云端返回 `ASR_RESPONSE_HAVE_NO_WORDS`（HTTP 400），会议状态落到
+`transcribe: failed`。真机验证时如果只坐在那儿不吭声，走的是失败路径，测不到成功路径。
+
+可用的制造语音办法：Windows 自带 TTS 念一段中文，录音端会把它录进去。
+
+```powershell
+Add-Type -AssemblyName System.Speech
+$s = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$s.SelectVoice('Microsoft Huihui Desktop')
+$s.Speak('大家好，这是一次自动化验证会议。')
+```
+
+**未解释清楚的一处（留档）**：有一次静音录音，界面在「识别中」停留了 90 秒以上，
+而当时 `/note-taker/detail` 的请求数是 **0**（没有轮询发生），会议状态已经是 `failed`。
+代码里 `awaitTranscript` 是处理了 `failed` 的（会切到出错态），所以更可能是轮询根本没启动、
+或启动前就中断了。因为只出现过一次、且此后两次复现都是正常路径，暂不改代码；
+若再出现，先抓 `/detail` 请求数和当时 phase。
+
+## L-35 验证「消息真进了会话」要看会话存储，不看界面提示
+
+界面说「已发送」只代表 `conversation.send` 没有抛错。真正的证据在会话存储：
+`~/.dsh/sessions/<workspace>/<sessionId>/session.v4.jsonl.zstd`。
+它是**多个 zstd frame 拼接**的文件，用 `zlib.zstdDecompressSync` 只解得出第一帧，
+要按 magic `28 b5 2f fd` 切分逐帧解压。命中 `agent/inbox/spliced` + 紧随其后的 `turn/start`，
+才算「消息进去了而且真的开始处理」。
+
+## L-36 「借作用域」和「发消息」各拿一次写句柄 —— 插件自己和自己抢锁
+
+**别这样写**：
+
+```js
+await sessions.using(id, { source }, async () => {
+  await sessions.scope(id).get('conversation').send(text)   // ← 又开一个写句柄
+})
+```
+
+`sessions.using` 内部是 `retain()`（拿到写句柄、open 会话），回调里 `conversation.send`
+**还要再开一个**写句柄，于是报 `session/writer-held: session "…" is already owned by an
+active write handle`——占着的那个人就是自己。
+
+实测：`sessions.manager.get(id)` 返回的会话实例上只有 `open()/openState/observeSubmission*`，
+没有 `send`，所以「先 retain 再手动 send」没有第二条路可走。
+
+结论：要么直接 `sessions.scope(id).get('conversation').send()`（会话已被界面保留时），
+要么老实告诉用户发不了。不要试图自己开一个会话再去发。
+
+## L-37 同一个会话被两个客户端同时打开，写锁会打架
+
+桌面版和 `dsh web` 是两个进程；谁先打开某个会话，谁就握着它的写句柄。
+另一个进程再对同一会话发消息，就会撞 `session/writer-held`。
+
+这次排查里，用户报错的会话 id，正好是我为做 web 端验证而起的宿主所打开过的。
+所以「验证用的宿主别一直开着」也算一条纪律：测完就停，别让它继续占着用户的会话。
+
+排查时先看这条线索：报错里的会话 id 是不是自己起过宿主碰过的那个。
+
+## L-38 组件 state 里的「刚做完的事」，用户会当成已经保存了
+
+停止录音、识别完、看到确认区——用户的理解是「这场会存下来了」。但那一刻
+`current / transcript / phase` 全在组件 state 里，切走再回来就归零，
+页面恢复成「空闲 + 开始录音」，用户看到的就是「我刚录的没了」。
+
+这跟 L-32 是同一类病，但后果更严重：L-32 丢的是**正在看的信息**，这里丢的是
+**用户以为已经保存的成果**。
+
+规矩：只要一个动作产出了「用户可能想再找回来」的东西，就必须同时写进宿主或持久层，
+组件 state 只是当次渲染的缓存。记录什么？**只记 id**（真身在宿主，回来 `GET /detail` 重取），
+放在 localStorage，带过期时间（本次 24 小时），避免每次进页面都翻出一场老会。
+
+配套验证方式：node 里用极简 hook 运行时真跑 effect（渲染 → 跑 effect → 放行 Promise → 再渲染），
+fetch 全桩掉，断言「回来能恢复成确认区」。比开浏览器更快，也能进 CI。
+
+## L-39 node 测试被 `setInterval` 挂住，`.unref()` 是最小代价的解法
+
+模块级轮询（`recordState` 的 3 秒 tick）在浏览器里正常，但被客户端测试 import 之后，
+node 事件循环因为有活跃 interval 而永不退出，`node --test` 跑完不返回。
+
+解法：`timer = setInterval(...); timer?.unref?.()`。浏览器里 `unref` 不存在，可选链直接跳过，
+行为不变。
+

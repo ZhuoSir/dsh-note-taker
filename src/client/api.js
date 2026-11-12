@@ -98,6 +98,8 @@ export function createApi({ baseUrl = '', fetchImpl = globalThis.fetch, timeoutM
     transcribe: ({ id, engine, sessionId } = {}) => longAction('/transcribe', { id, engine, sessionId }, { engine }),
     minutes: ({ id, force, sessionId } = {}) => request('/minutes', { method: 'POST', body: { id, force, sessionId } }),
     record: ({ action, label, stream, sessionId } = {}) => request('/record', { method: 'POST', body: { action, label, stream, sessionId } }),
+    // 全局录音状态：不带 sessionId —— 录音属于宿主，不属于某个会话（CR-02 / R-11）
+    recordState: () => request('/record'),
     live: ({ id } = {}) => request('/live', { query: { id } }),
     rename: ({ id, label } = {}) => request('/label', { method: 'POST', body: { id, label } }),
     importAudio: ({ path, label } = {}) => request('/import', { method: 'POST', body: { path, label } }),

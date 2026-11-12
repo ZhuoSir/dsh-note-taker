@@ -58,7 +58,7 @@ export function buildHandoffMessage({
     return { ok: false, reason: '缺少会议 id，无法让会话定位这场会议' }
   }
 
-  const name = (typeof label === 'string' && label.trim() !== '') ? label.trim() : '(未命名)'
+  const name = (typeof label === 'string' && label.trim() !== '') ? label.trim() : '未命名'
   const header = `【会记】会议 ${meetingId}（${name}，${fmtDuration(durationSec)}）`
   const hasPath = typeof outputPath === 'string' && outputPath.trim() !== ''
 

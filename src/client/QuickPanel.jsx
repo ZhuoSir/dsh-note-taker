@@ -13,15 +13,25 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import { createApi } from './api.js'
 import { buildHandoffMessage } from './handoff.js'
 import { copyText, hostStatusText, sendToSession } from './host.js'
-import { STREAM_CONSENT_TEXT, capabilitiesFrom, errorText, formatDateTime, formatDuration, liveView, needsStreamConsent, readPanelOpen, shouldPollLive, triggerView, writePanelOpen } from './logic.js'
+import { STREAM_CONSENT_TEXT, capabilitiesFrom, errorText, formatDateTime, formatDuration, liveView, needsStreamConsent, shouldPollLive, triggerView } from './logic.js'
 import { LIVE_POLL_MS } from './logic.js'
 import { theme } from './theme.js'
+import { useRecordState } from './recordState.js'
+import { currentSessionId } from './host.js'
+import { rememberMeeting, getRememberedMeeting, forgetMeeting } from './lastMeeting.js'
+import HistoryList from './HistoryList.jsx'
+import { toListRows } from './logic.js'
 
 const POLL_MS = 2000
 const TRANSCRIBE_TIMEOUT_MS = 15 * 60 * 1000
 
 const styles = {
-  root: { position: 'relative', display: 'inline-block' },
+  // CR-01：root 撑满输入行高，使卡片的 bottom:100% 落在「输入行上沿」而不是「入口上沿」，
+  // 避免卡片压进输入行、吃掉点输入框的点击（实测缺陷：光标进不去，缩放窗口才恢复）
+  root: {
+    position: 'relative', display: 'inline-flex', alignItems: 'center',
+    alignSelf: 'stretch',
+  },
   // 入口：图标 + 文字，无按钮外观（R-01）；开合状态由 aria-expanded 表达，不靠边框
   trigger: {
     display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0,
@@ -33,8 +43,16 @@ const styles = {
     background: tone === 'success' ? theme.success : theme.textMuted,
   }),
   timing: { color: theme.textSecondary, fontVariantNumeric: 'tabular-nums' },
+  // 卡片内确认条（替代 window.confirm）
+  consent: {
+    display: 'flex', flexDirection: 'column', gap: 6, padding: 8, borderRadius: 8,
+    border: `1px solid ${theme.accentBorder}`, background: theme.accentBg,
+  },
+  consentText: { color: theme.text, fontSize: 11, lineHeight: 1.6 },
   panel: {
-    position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 40, width: 380,
+    // CR-01：间距改用 marginBottom，bottom 只表达「贴着输入行上沿」，不再把偏移量算进锚点
+    position: 'absolute', bottom: '100%', right: 0, zIndex: 40,
+    width: 380, maxWidth: 'min(380px, calc(100vw - 24px))', marginBottom: 8,
     padding: 12, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 8,
     border: `1px solid ${theme.border}`, fontSize: 12,
     background: theme.bg, color: theme.text, fontFamily: theme.font,
@@ -59,6 +77,23 @@ const styles = {
   liveFinal: { color: theme.text, fontSize: 11, lineHeight: 1.6 },
   livePartial: { color: theme.textMuted, fontStyle: 'italic', fontSize: 11, lineHeight: 1.6 },
   liveTime: { color: theme.textMuted, fontSize: 10, fontFamily: theme.mono, marginRight: 6 },
+
+  // 页面模式（CR-02）：入口搬到侧栏后，这里是主区域的「会记」页面，不再是浮在输入框上的卡片
+  pageRoot: {
+    display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0,
+    boxSizing: 'border-box', overflowY: 'auto', padding: '20px 24px 28px',
+    color: theme.text, fontFamily: theme.font, background: theme.bg,
+  },
+  pagePanel: {
+    display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 860,
+    fontSize: 13, border: 'none', padding: 0, background: 'transparent',
+  },
+}
+
+/** 会话 id 太长，界面里只露尾巴 */
+function shortId(id) {
+  if (typeof id !== 'string' || id === '') return '（未识别到当前会话）'
+  return id.length <= 16 ? id : `…${id.slice(-8)}`
 }
 
 const PHASE_TEXT = {
@@ -70,9 +105,9 @@ const PHASE_TEXT = {
   error: '出错',
 }
 
-export function QuickPanel({ sessionId } = {}) {
-  // 槽位 0 仍是 open：初始化读记忆，切换时写记忆，不新增 useState（保测试槽位顺序）
-  const [open, setOpen] = useState(readPanelOpen)
+export function QuickPanel({ sessionId, page = false } = {}) {
+  // 槽位 0 仍是 open；CR-01 撤销持久化：默认收起，不跨会话记忆
+  const [open, setOpen] = useState(false)
   const [rows, setRows] = useState([])
   const [health, setHealth] = useState(null)
   const [error, setError] = useState(null)
@@ -91,13 +126,60 @@ export function QuickPanel({ sessionId } = {}) {
   const liveKeyRef = useRef('')
   const liveChangedAtRef = useRef(0)
 
-  const api = useMemo(() => createApi({
-    confirmCloud: (text) => (typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm(text) : false),
+  /**
+   * 卡片内确认（替代 window.confirm）。
+   *
+   * 教训：Electron 里原生 confirm 会打断渲染进程的输入法编辑上下文——弹过之后宿主输入框
+   * 收得到 keydown 却输不进字，要到窗口缩放才恢复。这里改成页面内的确认条，
+   * 不再让宿主弹原生对话框。
+   */
+  const [consent, setConsent] = useState(null)
+  const consentResolveRef = useRef(null)
+
+  // 历史纪要区（CR-03）：从设置页搬来，状态留在页面里，切走重进重新拉
+  const [historyId, setHistoryId] = useState(null)
+  const [historyTitle, setHistoryTitle] = useState('')
+  const [historyText, setHistoryText] = useState('')
+  const [historyAll, setHistoryAll] = useState(false)
+  const [historyListLimit, setHistoryListLimit] = useState(20)
+  const [historyError, setHistoryError] = useState(null)
+  const [generatingId, setGeneratingId] = useState(null)
+
+  const askConsent = useCallback((text) => new Promise((resolve) => {
+    consentResolveRef.current = resolve
+    setConsent({ text })
   }), [])
+
+  const answerConsent = useCallback((granted) => {
+    const resolve = consentResolveRef.current
+    consentResolveRef.current = null
+    setConsent(null)
+    if (resolve) resolve(granted)
+  }, [])
+
+  const api = useMemo(() => createApi({
+    confirmCloud: (text) => askConsent(text),
+  }), [askConsent])
   const caps = useMemo(() => capabilitiesFrom(health), [health])
+  const historyRows = useMemo(() => toListRows(rows, { limit: 50 }), [rows])
+
+  /** 展开/收起某场会议：有纪要显示纪要，没有则显示转写 */
+  const openHistory = useCallback(async (id) => {
+    if (historyId === id) { setHistoryId(null); setHistoryText(''); setError(null); return }
+    setHistoryError(null)
+    const result = await api.detail({ id })
+    if (result.ok === false) { setHistoryError(errorText(result.code, result.detail)); return }
+    const minutes = (result.minutes ?? '').trim()
+    const transcript = (result.transcript ?? '').trim()
+    setHistoryId(id)
+    setHistoryTitle(result.meeting?.label || result.meeting?.startedAt || id)
+    setHistoryText(minutes !== '' ? minutes : transcript)
+    setHistoryAll(false)
+    if (minutes === '' && transcript === '') setHistoryError('这场会议没有纪要，也没有转写正文')
+  }, [api, historyId])
 
   const refresh = useCallback(async () => {
-    const [listResult, healthResult] = await Promise.all([api.list({ limit: 3 }), api.health()])
+    const [listResult, healthResult] = await Promise.all([api.list({ limit: page ? 50 : 3 }), api.health()])
     if (listResult.ok === false) {
       // 刷新失败是「后台拉列表」的问题，不能显示成「识别失败」误导用户
       setRefreshError(`刷新失败：${errorText(listResult.code, listResult.detail)}`)
@@ -108,17 +190,20 @@ export function QuickPanel({ sessionId } = {}) {
     setHealth(healthResult.ok === false ? null : healthResult)
   }, [api])
 
+  // 页面模式没有「展开」这一步：一进页面就该拉数据（否则会一直显示「云端未配置」）
+  const visible = page || open
+
   useEffect(() => {
-    if (!open) return undefined
+    if (!visible) return undefined
     refresh()
     const timer = setInterval(() => { if (typeof document === 'undefined' || !document.hidden) refresh() }, POLL_MS * 2)
     return () => clearInterval(timer)
-  }, [open, refresh])
+  }, [visible, refresh])
 
   // 点面板外部或按 Esc 收起（R-04）：两个监听合成一个 effect，Esc 不阻止默认行为
   useEffect(() => {
-    if (!open) return undefined
-    const close = () => { setOpen(false); writePanelOpen(false) }
+    if (!visible || page) return undefined // 页面模式没有「点外面收起」
+    const close = () => { if (consentResolveRef.current) answerConsent(false); setOpen(false) }
     const onDown = (event) => { if (rootRef.current && !rootRef.current.contains(event.target)) close() }
     const onKey = (event) => { if (event.key === 'Escape') close() }
     if (typeof document !== 'undefined') {
@@ -148,10 +233,75 @@ export function QuickPanel({ sessionId } = {}) {
     return () => clearInterval(timer)
   }, [phase])
 
+  /**
+   * 全局录音态（CR-02 / R-14）。
+   *
+   * 放在 useState 之后、所有 effect 之前调用：不打乱 hook 序号，
+   * 又让字幕轮询能看见「这个录音不是本组件发起的」——切走再切回来才不会把字幕框丢掉。
+   */
+  const globalRecord = useRecordState()
+  const externalRunning = page && globalRecord.running === true
+  const recording = phase === 'recording' || externalRunning
+  const liveMeetingId = current?.meetingId ?? (externalRunning ? globalRecord.meetingId : null)
+  const liveStreaming = current?.streaming === true || (externalRunning && globalRecord.streaming === true)
+
+  // 外部（别的会话/上次进入）开着的录音：把当前会议补进组件状态，字幕轮询才有 context
+  useEffect(() => {
+    if (!externalRunning || !globalRecord.meetingId) return
+    setPhase((value) => (value === 'idle' || value === 'error' || value === 'sent' ? 'recording' : value))
+    setCurrent((value) => (value?.meetingId === globalRecord.meetingId
+      ? value
+      : {
+          meetingId: globalRecord.meetingId,
+          label: globalRecord.label ?? '',
+          startedAt: globalRecord.startedAt ?? null,
+          durationSec: null,
+          streaming: globalRecord.streaming === true,
+        }))
+  }, [externalRunning, globalRecord.meetingId, globalRecord.label, globalRecord.startedAt, globalRecord.streaming])
+
+  // 回到页面时把「刚录完的那场」捡回来（用户反馈：停止录制后切页面，回来内容没了）
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (restoredRef.current) return
+    if (!(page || open)) return
+    if (recording) return
+    const remembered = getRememberedMeeting()
+    if (!remembered) { restoredRef.current = true; return }
+    if (current?.meetingId === remembered.meetingId) { restoredRef.current = true; return }
+    restoredRef.current = true
+    let cancelled = false
+    ;(async () => {
+      const detail = await api.detail({ id: remembered.meetingId, sessionId })
+      if (cancelled) return
+      if (detail.ok === false) return
+      const meeting = detail.meeting ?? {}
+      const status = meeting.status?.transcribe
+      if (status !== 'done' || !detail.transcript) {
+        setNotice(`上一场会议 ${remembered.meetingId} 还没出转写结果，可在 设置 → 会记 查看`)
+        return
+      }
+      setCurrent({
+        meetingId: remembered.meetingId,
+        label: meeting.label ?? '',
+        startedAt: meeting.startedAt,
+        durationSec: meeting.durationSec ?? null,
+        outputPath: detail.outputPath ?? null,
+        outputMode: detail.outputMode ?? 'fallback',
+        workspaceRoot: detail.workspaceRoot ?? null,
+        streaming: false,
+      })
+      setLabelDraft(meeting.label ?? '')
+      setTranscript(detail.transcript ?? '')
+      setPhase('confirm')
+    })()
+    return () => { cancelled = true }
+  }, [page, open, recording, current?.meetingId, api, sessionId])
+
   // 字幕轮询（R-02）：只在流式录音期间开；页面隐藏时暂停，回来再继续
   useEffect(() => {
-    const meetingId = current?.meetingId
-    if (phase !== 'recording' || current?.streaming !== true || !meetingId) {
+    const meetingId = liveMeetingId
+    if (!recording || liveStreaming !== true || !meetingId) {
       setLive(null)
       setLiveSilence(0)
       return undefined
@@ -179,7 +329,7 @@ export function QuickPanel({ sessionId } = {}) {
     tick()
     const timer = setInterval(tick, LIVE_POLL_MS)
     return () => { stopped = true; clearInterval(timer) }
-  }, [phase, current?.meetingId, current?.streaming, api])
+  }, [recording, liveMeetingId, liveStreaming, api])
 
   const startRecord = useCallback(async () => {
     setError(null); setNotice(null); setPhase('starting')
@@ -187,9 +337,7 @@ export function QuickPanel({ sessionId } = {}) {
     // 流式开启且本次会话还没确认过 → 先确认「录音期间持续上传音频」（R-08）
     const wantStream = caps.streamReady === true
     if (wantStream && needsStreamConsent({ streamEnabled: true, acknowledged: streamAckRef.current })) {
-      const granted = typeof window !== 'undefined' && typeof window.confirm === 'function'
-        ? window.confirm(STREAM_CONSENT_TEXT) === true
-        : false
+      const granted = await askConsent(STREAM_CONSENT_TEXT)
       if (!granted) {
         setPhase('idle')
         setNotice('已取消：未确认录音期间上传音频')
@@ -202,7 +350,7 @@ export function QuickPanel({ sessionId } = {}) {
     if (result.ok === false) { setPhase('error'); setError(errorText(result.code, result.detail)); return }
     setCurrent({ meetingId: result.meetingId, label: '', durationSec: null, streaming: result.stream?.stream === true })
     setPhase('recording')
-  }, [api, caps.streamReady, sessionId])
+  }, [api, askConsent, caps.streamReady, sessionId])
 
   const awaitTranscript = useCallback(async (meetingId, durationSec) => {
     const deadline = Date.now() + TRANSCRIBE_TIMEOUT_MS
@@ -227,12 +375,14 @@ export function QuickPanel({ sessionId } = {}) {
         setLabelDraft(label)
         setTranscript(detail.transcript ?? '')
         setPhase('confirm')
+        rememberMeeting(meetingId)
         refresh()
         return
       }
       if (status === 'failed') {
         setPhase('error')
         setError(detail.meeting?.errors?.transcribe ?? '识别失败')
+        rememberMeeting(meetingId)
         return
       }
     }
@@ -285,6 +435,36 @@ export function QuickPanel({ sessionId } = {}) {
     await runTranscribe(result.meetingId, result.durationSec)
   }, [api, sessionId, awaitTranscript, runTranscribe])
 
+  /**
+   * 把文本交给当前会话。
+   *
+   * 交接（确认区）和历史纪要用同一条路：都发到「当前打开的会话」，
+   * 由会话里的 agent 生成纪要并写回产物。失败时复述真实原因并兜底复制，
+   * 不把「写锁被占」说成「不支持」。
+   */
+  const deliver = useCallback(async (text, built) => {
+    // 页面态拿不到会话注入 → 用宿主记录的「当前打开的会话」
+    const target = sessionId ?? currentSessionId()
+    const sent = await sendToSession({ sessionId: target ?? undefined, text })
+    if (sent.ok) {
+      return {
+        ok: true,
+        notice: `已发送到会话 ${shortId(sent.sessionId)}（${built?.mode === 'summary' ? '摘要模式' : '全文'}，${built?.chars ?? text.length} 字）· 点左侧该会话查看`,
+      }
+    }
+    const copied = await copyText(text)
+    const blocked = /写锁|writer-held|正开着这个会话/.test(String(sent.reason))
+    return {
+      ok: false,
+      reason: sent.reason,
+      notice: copied.ok
+        ? (blocked
+          ? '该会话正被另一个客户端占着，文本已复制到剪贴板——打开这个会话粘贴发送即可'
+          : '宿主不支持自动发送，文本已复制到剪贴板，请粘贴到输入框发送')
+        : `无法发送也无法复制（${copied.reason}），请手动重试`,
+    }
+  }, [sessionId])
+
   const handoff = useCallback(async () => {
     if (!current?.meetingId) return
     const built = buildHandoffMessage({
@@ -299,21 +479,41 @@ export function QuickPanel({ sessionId } = {}) {
     if (built.ok === false) { setPhase('error'); setError(built.reason); return }
 
     setPhase('sending')
-    const sent = await sendToSession({ sessionId, text: built.text })
-    if (sent.ok) {
-      setPhase('sent')
-      setNotice(`已发送到会话（${built.mode === 'summary' ? '摘要模式' : '全文'}，${built.chars} 字）`)
-      return
-    }
-    setError(`无法自动发送：${sent.reason}`)
-
-    // 兜底：复制到剪贴板，并说明真实情况
-    const copied = await copyText(built.text)
+    const result = await deliver(built.text, built)
+    if (result.ok) { setPhase('sent'); setNotice(result.notice); return }
+    setError(`无法自动发送：${result.reason}`)
     setPhase('sent')
-    setNotice(copied.ok
-      ? '宿主不支持自动发送，文本已复制到剪贴板，请粘贴到输入框发送'
-      : `无法发送也无法复制（${copied.reason}），请手动重试`)
-  }, [current, transcript, sessionId])
+    setNotice(result.notice)
+  }, [current, transcript, deliver])
+
+  /** 历史行「生成纪要」：和正常流程一样，把这场的转写发给当前会话 */
+  const generateMinutes = useCallback(async (row) => {
+    if (!row?.id || generatingId) return
+    setHistoryError(null)
+    setGeneratingId(row.id)
+    try {
+      const detail = await api.detail({ id: row.id })
+      if (detail.ok === false) { setHistoryError(errorText(detail.code, detail.detail)); return }
+      const text = String(detail.transcript ?? '').trim()
+      if (text === '') { setHistoryError('这场会议还没有转写，先识别再生成纪要'); return }
+      const built = buildHandoffMessage({
+        meetingId: row.id,
+        label: detail.meeting?.label ?? row.rawLabel ?? '',
+        durationSec: detail.meeting?.durationSec ?? null,
+        outputPath: detail.outputPath,
+        outputMode: detail.outputMode,
+        workspaceRoot: detail.workspaceRoot,
+        transcript: text,
+      })
+      if (built.ok === false) { setHistoryError(built.reason); return }
+      const result = await deliver(built.text, built)
+      if (result.ok) { setNotice(result.notice); return }
+      setHistoryError(`无法自动发送：${result.reason}`)
+      setNotice(result.notice)
+    } finally {
+      setGeneratingId(null)
+    }
+  }, [api, deliver, generatingId])
 
   const saveLabel = useCallback(async () => {
     if (!current?.meetingId) return
@@ -327,29 +527,31 @@ export function QuickPanel({ sessionId } = {}) {
 
   const reset = useCallback(() => {
     setPhase('idle'); setCurrent(null); setTranscript(''); setLabelDraft(''); setError(null); setNotice(null)
+    forgetMeeting()
     setLive(null); setLiveSilence(0)
   }, [])
 
-  const recording = phase === 'recording'
+  const liveSeconds = externalRunning ? globalRecord.seconds : seconds
   const busy = ['starting', 'stopping', 'transcribing', 'sending'].includes(phase)
   const liveCard = liveView(live, { silenceSec: liveSilence })
   const trigger = triggerView({ recording, seconds, open })
 
-  return createElement('div', { ref: rootRef, style: styles.root },
-    createElement('button', {
+  // 页面模式：不渲染入口按钮（入口在侧栏），内容直接铺成主区域页面
+  return createElement('div', { ref: rootRef, style: page ? styles.pageRoot : styles.root },
+    page ? null : createElement('button', {
       type: 'button',
       style: styles.trigger,
       title: trigger.title,
       'aria-label': trigger.ariaLabel,
       'aria-expanded': trigger.expanded,
-      onClick: () => setOpen((value) => { const next = !value; writePanelOpen(next); return next }),
+      onClick: () => setOpen((value) => !value),
     },
       createElement('span', { key: 'dot', style: styles.dot(trigger.tone), 'aria-hidden': 'true' }),
       createElement('span', { key: 'label' }, trigger.label),
       trigger.timing ? createElement('span', { key: 'timing', style: styles.timing }, trigger.timing) : null,
     ),
 
-    open ? createElement('div', { style: styles.panel },
+    (page || open) ? createElement('div', { style: page ? styles.pagePanel : styles.panel },
       createElement('div', { style: styles.row },
         createElement('strong', null, '会记'),
         createElement('span', { style: styles.muted }, caps.cloudReady ? `云端可用${caps.cloudModel ? `·${caps.cloudModel}` : ''}` : '云端未配置'),
@@ -359,9 +561,18 @@ export function QuickPanel({ sessionId } = {}) {
       refreshError ? createElement('div', { style: styles.muted }, refreshError) : null,
       notice ? createElement('div', { style: styles.ok }, notice) : null,
 
+      // 卡片内确认条（替代 window.confirm：原生弹窗会打断宿主输入法的编辑上下文）
+      consent ? createElement('div', { style: styles.consent },
+        createElement('div', { style: styles.consentText }, consent.text),
+        createElement('div', { style: styles.row },
+          createElement('button', { type: 'button', style: styles.btnPrimary, onClick: () => answerConsent(true) }, '继续'),
+          createElement('button', { type: 'button', style: styles.btn, onClick: () => answerConsent(false) }, '取消'),
+        ),
+      ) : null,
+
       createElement('div', { style: styles.row },
         recording
-          ? createElement('button', { type: 'button', style: styles.btn, onClick: stopRecord }, `停止并识别 ${formatDuration(seconds)}`)
+          ? createElement('button', { type: 'button', style: styles.btn, onClick: stopRecord }, `停止并识别 ${formatDuration(liveSeconds)}`)
           : createElement('button', {
               type: 'button',
               style: (busy || !caps.recordingReady) ? { ...styles.btn, opacity: 0.5 } : styles.btn,
@@ -434,7 +645,8 @@ export function QuickPanel({ sessionId } = {}) {
       // 确认区：识别完成后出现，可编辑
       phase === 'confirm' || phase === 'sending' || phase === 'sent'
         ? createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
-            createElement('div', { style: styles.muted }, `识别结果（可改错字）· ${transcript.length} 字`),
+            createElement('div', { style: styles.muted },
+              `识别结果（可改错字）· ${transcript.length} 字 · 目标会话 ${shortId(sessionId ?? currentSessionId())}`),
             createElement('textarea', {
               style: styles.textarea, value: transcript,
               onChange: (event) => setTranscript(event.target.value),
@@ -459,7 +671,26 @@ export function QuickPanel({ sessionId } = {}) {
           )
         : null,
 
-      createElement('div', { style: styles.muted }, '全部会议在 设置 → 会记'),
+      // 历史纪要（CR-03）：从设置页搬来，所有会议都列，没出纪要的也能找到
+      page
+        ? createElement(HistoryList, {
+            rows: historyRows,
+            openedId: historyId,
+            openedTitle: historyTitle,
+            openedText: historyText,
+            showAll: historyAll,
+            limit: historyListLimit,
+            error: historyError,
+            generatingId,
+            onOpen: openHistory,
+            onGenerate: generateMinutes,
+            onShowAll: (what) => {
+              if (what === 'more') setHistoryListLimit((n) => n + 20)
+              else setHistoryAll(true)
+            },
+          })
+        : null,
+
       createElement('div', { style: { ...styles.muted, fontSize: 10 } }, hostStatusText()),
     ) : null,
   )

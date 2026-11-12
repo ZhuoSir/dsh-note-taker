@@ -133,9 +133,9 @@ function loadQuickPanel(react) {
     },
     inject: () => {},
   })
-  const hit = registered.find((item) => item.definition?.name === 'conversation.input.right')
-  assert.ok(hit, '未注册到插槽 conversation.input.right')
-  return hit.component
+  // CR-02：入口已搬到侧栏，卡片组件不再注册进插槽，直接从模块导出里取
+  assert.ok(module.QuickPanel, '产物应导出 QuickPanel')
+  return module.QuickPanel
 }
 
 /** 深度遍历假 React 树 */

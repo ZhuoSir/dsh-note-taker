@@ -122,33 +122,6 @@ export function needsStreamConsent({ streamEnabled, acknowledged } = {}) {
   return streamEnabled === true && acknowledged !== true
 }
 
-/** 卡片开合的记忆键（R-05）：只记「开着/收起」，不记其它偏好 */
-export const PANEL_STATE_KEY = 'dsh-note-taker:panel-open'
-
-/**
- * 读记忆（R-05）：读不到、被禁用、抛异常一律按「收起」，绝不阻塞渲染。
- * storage 可注入，便于单测（默认用浏览器 localStorage）。
- */
-export function readPanelOpen(storage = typeof localStorage === 'undefined' ? null : localStorage) {
-  try {
-    if (!storage) return false
-    return storage.getItem(PANEL_STATE_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-/** 写记忆（R-05）：失败只是不记忆，不影响开合 */
-export function writePanelOpen(open, storage = typeof localStorage === 'undefined' ? null : localStorage) {
-  try {
-    if (!storage) return false
-    storage.setItem(PANEL_STATE_KEY, open ? '1' : '0')
-    return true
-  } catch {
-    return false
-  }
-}
-
 /**
  * 会话入口「会记」的渲染数据（纯函数，R-01/R-02/R-03/R-06）。
  *

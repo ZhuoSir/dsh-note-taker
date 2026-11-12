@@ -2,6 +2,30 @@
 
 > 只追加不改写。每条带证据（命令输出/文件行号/用户原话）。
 
+## v0.5.0（2026-11-12）见证人: —
+
+### 确认③（实现验收）
+CR-04：历史纪要里「待生成」的会议给出「生成纪要」按钮。用户原话：「待生成的，没有生成纪要的操作按钮」，
+并指定生成方式：「生成纪要，就和正常逻辑一样，发给会话生成」。
+
+真机证据（web `--profile web`，CDP 驱动，16 场会议）：
+- 11 个可点按钮 / 4 个置灰，title 覆盖「等识别完成后才能生成」「识别失败，先重试识别」；
+- 点某行按钮 → 提示「已发送到会话 …2020e05a（全文，50 字）」。
+
+`npm test`：366 tests / 366 pass / 0 fail。
+
+## v0.4.0（2026-11-12）见证人: —
+
+### 确认③（实现验收）
+CR-03：历史纪要搬到会记页面。用户原话：「设置-会记里的 历史纪要，挪到外面会记标签的页面里」。
+
+真机证据（web `--profile web`，CDP 驱动）：
+- 会记页 `历史纪要（16）`，徽标出现 已生成纪要 / 仅转写 / 识别中 / 识别失败；
+- 点第一行（11-12 14:32，1:05:33）后展开 `<pre>` 2127 字；
+- 设置页 `历史纪要（N）` 不存在、`role=tab` 数量 0、`只放配置` 文案命中、`保存配置`/`默认引擎` 仍在。
+
+`npm test`：361 tests / 361 pass / 0 fail。
+
 ## v0.1.0（2026-11-12）确认人: 陈卓
 
 ### 确认①（需求）
@@ -73,3 +97,55 @@ T-07 需用户在真机上看观感、施工分支 eature/meeting-trigger 自 1
 
 - `86068f1`（T-01~T-06 实现）：T-01/T-06 保留；T-02/T-03/T-04/T-05 由 T-08~T-10 改造；
   不整体 revert——`triggerView`、圆点入口、Esc 收起、README 与产物脚本都仍然有效
+
+### CR-01 实现（2026-11-11）
+
+- T-08：`styles.root` 改 `inline-flex + alignItems:center + alignSelf:stretch`（撑满输入行高）；
+  `styles.panel` 由 `bottom:'calc(100% + 8px)'` 改为 `bottom:'100%' + marginBottom:8`，
+  并加 `maxWidth:'min(380px, calc(100vw - 24px))'` 兜窄屏
+- T-09：删除 `PANEL_STATE_KEY`/`readPanelOpen`/`writePanelOpen`（logic.js 减 27 行），
+  `open` 回到 `useState(false)`，toggle/close 不再写存储
+- T-10：渲染断言新增 `"bottom":"100%"`、`"alignSelf":"stretch"`、`"marginBottom":8`、
+  否定 `calc(100% + 8px)`；收起态用例改为空 overrides（默认收起）
+- 真实输出：`构建校验: lib/client.js 可重复构建（97a486af92fa）`，`tests 347 / pass 347 / fail 0`
+
+### CR-01 补记：原生 confirm 换卡片内确认（2026-11-11）
+
+- 触发：T-08/T-09 修完后用户真机复验仍不能输入；控制台证据显示**无遮挡、焦点正常、事件未拦**，
+  且「卡片展开但不录音时能输入」，只在录音开始后失效
+- 结论：开始录音时的原生 `window.confirm` 打断了输入法编辑上下文（见 lessons L-26）
+- 改法：`confirmCloud` 与流式确认都改为卡片内确认条（`askConsent`/`answerConsent`）；
+  卡片被收起时按「取消」收场，避免 `startRecord` 永久挂起；删掉全部 `window.confirm` 调用
+- 真实输出：`构建校验: lib/client.js 可重复构建（33530032a71d）`，`tests 347 / pass 347 / fail 0`
+
+## v0.3.0（2026-11-11）CR-02 确认人: 陈卓
+
+### 触发
+
+用户真机反馈原话：「录制毕竟是一个全局的事情，把它放到工作区上面，插件自动化任务那里」，
+并附截图指明侧栏 `新会话 / 插件 / 自动化任务 / 上下文观察` 那一排。
+
+### 拍板
+
+用户：「继续做」——CR-02 档位 minor，§S/§P/§T 一并确认。
+
+### R 变更
+
+- 改 R-01（入口位置 → 侧栏 `sidebar.panellist`，order 30）、R-03（计时位置）、R-04（页面进出）、
+  R-06（可访问性由宿主行承担）
+- 作废 R-05（不再有卡片）、R-10（遮挡在结构上不可能发生）
+- 增 R-11 全局入口、R-12 单一入口、R-13 会记页面、R-14 全局录音状态
+
+### 实现
+
+- 宿主：`recordState()` + `GET /note-taker/record`，含进程意外退出的自愈
+- 客户端：新增 `recordState.js`（共享订阅 + 单轮询 + 本地补秒）、`MeetingPanel.jsx`（页面壳）、
+  `RecordIcon.jsx`（侧栏图标，展开态带计时）；`QuickPanel` 支持 `page` 模式
+- 注册点：删 `conversation.input.right`，增 `main` 与 `sidebar.panellist`
+- 真实输出：`构建校验: lib/client.js 可重复构建（ce449cf42770）`，`tests 349 / pass 349 / fail 0`
+
+### 缺陷
+
+- BUG-02（切会话丢录音）：结构性解决——控制点不再属于会话
+- BUG-01/BUG-03（输入框被压/输入法被打断）：入口离开输入区，且原生 confirm 已换成页面内确认条
+

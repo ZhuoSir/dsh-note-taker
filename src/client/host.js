@@ -110,23 +110,51 @@ export function hostStatusText(status = getHostStatus()) {
 }
 
 /**
- * 把一条文本发进指定会话。
- * @param {{sessionId?: string, text: string}} input
- * @returns {Promise<{ok:true} | {ok:false, reason:string}>}
+ * 当前打开的会话 id。
+ *
+ * 为什么需要它：`main` 面板拿到的是空 props（宿主源码里就是 `renderSlot("main", {}, …)`），
+ * 搬到侧栏之后再也拿不到 `conversation.input.right` 注入的 sessionId，
+ * 于是「交给会话」会在发送前卡在「拿不到当前会话 id」。
+ *
+ * 真相在宿主的 workspace 选择里，它持久化在 localStorage 的 `dsh.sessions.current`
+ * （实测值：`{"sessionId":"session-b3e22b42-…"}`）。sessions 服务若恰好暴露了当前选择则优先用它。
  */
-export async function sendToSession({ sessionId, text } = {}) {
+export function currentSessionId() {
   const sessions = getSessions()
-  if (!sessions) return { ok: false, reason: '宿主未提供 sessions 服务（探针未通过）' }
-  if (typeof sessionId !== 'string' || sessionId === '') return { ok: false, reason: '拿不到当前会话 id' }
-  if (typeof text !== 'string' || text.trim() === '') return { ok: false, reason: '消息内容为空' }
+  if (sessions) {
+    for (const key of ['currentSessionId', 'current', 'activeSessionId']) {
+      try {
+        const value = sessions[key]
+        const got = typeof value === 'function' ? value.call(sessions) : value
+        if (typeof got === 'string' && got !== '') return got
+        if (got && typeof got.sessionId === 'string' && got.sessionId !== '') return got.sessionId
+        if (got && typeof got.id === 'string' && got.id !== '') return got.id
+      } catch { /* 没有这个字段就算了 */ }
+    }
+  }
 
+  try {
+    const raw = globalThis.localStorage?.getItem(CURRENT_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (typeof parsed?.sessionId === 'string' && parsed.sessionId !== '') return parsed.sessionId
+    }
+  } catch { /* localStorage 不可用就返回 null */ }
+
+  return null
+}
+
+const CURRENT_KEY = 'dsh.sessions.current'
+
+/** 直接借已保留的会话作用域发送（会话正开着时走这条） */
+async function sendViaScope(sessions, sessionId, text) {
   let scoped
   try {
     scoped = sessions.scope(sessionId)
   } catch (error) {
     return { ok: false, reason: `取会话作用域失败：${String(error?.message ?? error).slice(0, 80)}` }
   }
-  if (!scoped) return { ok: false, reason: `会话 "${sessionId}" 没有对应作用域` }
+  if (!scoped) return { ok: false, reason: 'scope-missing' }
 
   const conversation = typeof scoped.get === 'function' ? scoped.get('conversation') : scoped.conversation
   if (!conversation || typeof conversation.send !== 'function') {
@@ -137,8 +165,45 @@ export async function sendToSession({ sessionId, text } = {}) {
     await conversation.send(text)
     return { ok: true }
   } catch (error) {
-    return { ok: false, reason: `发送失败：${String(error?.message ?? error).slice(0, 120)}` }
+    const message = String(error?.message ?? error)
+    // 另一个客户端（桌面版 / 网页版）正开着这个会话 → 它持有写句柄
+    if (message.includes('writer-held')) return { ok: false, reason: 'writer-held' }
+    return { ok: false, reason: `发送失败：${message.slice(0, 120)}` }
   }
+}
+
+/**
+ * 把一条文本发进会话（默认发往当前打开的会话）。
+ *
+ * 两条途径：
+ * 1. 会话正开着 → `sessions.scope(id)` 直接拿到作用域；
+ * 2. 正在看「会记」页面 → 主区域被面板占用，会话作用域可能已释放，
+ *    改用 `sessions.using(id, …)` 临时借一个（内部会 retain + open + release）。
+ *
+ * @param {{sessionId?: string, text: string}} input
+ * @returns {Promise<{ok:true, sessionId:string} | {ok:false, reason:string, sessionId?:string}>}
+ */
+export async function sendToSession({ sessionId, text } = {}) {
+  const sessions = getSessions()
+  if (!sessions) return { ok: false, reason: '宿主未提供 sessions 服务（探针未通过）' }
+  if (typeof text !== 'string' || text.trim() === '') return { ok: false, reason: '消息内容为空' }
+
+  const target = typeof sessionId === 'string' && sessionId !== '' ? sessionId : currentSessionId()
+  if (!target) return { ok: false, reason: '拿不到当前会话 id' }
+
+  const direct = await sendViaScope(sessions, target, text)
+  if (direct.ok) return { ok: true, sessionId: target }
+  if (direct.reason !== 'scope-missing') {
+    if (direct.reason === 'writer-held') {
+      return { ok: false, reason: '另一个客户端正开着这个会话（写锁被占用），可能同时开了桌面版和网页版', sessionId: target }
+    }
+    return { ok: false, reason: direct.reason, sessionId: target }
+  }
+
+  // 作用域不在，或写句柄被别的客户端占着：
+  // 不要用 sessions.using 去「借」——它会 retain 出写句柄，而 conversation.send 还要再开一个，
+  // 结果是插件自己和自己抢锁（实测报 session/writer-held）。
+  return { ok: false, reason: 'scope-missing', sessionId: target }
 }
 
 /** 剪贴板兜底 */

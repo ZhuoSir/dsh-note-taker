@@ -1,6 +1,9 @@
 # 任务：meeting-trigger
 
-> 版本: v0.2.0 | 状态: 待确认 | 更新: 2026-11-11 | 确认人: | 确认日期:
+> 版本: v0.5.0 | 状态: 待重确认 | 更新: 2026-11-12 | 确认人: — | 确认日期: —
+> 变更: CR-04（新增 T-20 ~ T-23，历史行生成纪要）
+> 变更: CR-03（新增 T-16 ~ T-19，历史纪要搬到页面）
+> 变更: CR-02（新增 T-11~T-15，入口搬到侧栏）
 > 变更: CR-01（新增 T-08~T-10；T-03 记忆部分回退、T-04 拆分到 T-10）
 > 需求: `requirements.md` v0.1.0（已确认）| 方案: `plan.md` v0.1.0（已确认）
 > 施工分支: `feature/meeting-trigger`（自 `1.1.0` 切出，完成后 `--no-ff` 合回）
@@ -13,6 +16,10 @@
 | R-02 状态色彩 | T-01, T-02 |
 | R-03 录制计时 | T-01, T-02 |
 | R-04 打开收起 | T-03 |
+| R-11 全局入口（CR-02） | T-13 |
+| R-12 单一入口（CR-02） | T-14 |
+| R-13 会记页面（CR-02） | T-12, T-13 |
+| R-14 全局录音状态（CR-02） | T-11 |
 | R-05 收起记忆 | T-03 |
 | R-06 可访问性 | T-02, T-03 |
 | R-07 功能不回归 | T-04 |
@@ -107,21 +114,21 @@ T-01 → T-02 → T-03 → T-04 → T-05 → T-07
 
 ## CR-01 新增任务（2026-11-11）
 
-- [ ] T-08 卡片锚点改为输入行上沿、且不与输入区重叠（CR-01 / R-10）
+- [x] T-08 卡片锚点改为输入行上沿、且不与输入区重叠（CR-01 / R-10）[产物断言 `"bottom":"100%"` / `"alignSelf":"stretch"` / `"marginBottom":8`，不再有 `calc(100% + 8px)`]
   依赖: 无 | 处置: 新增
   验收标准: `root` 增加 `alignSelf:'stretch'` 与 flex 居中；`panel` 改用 `bottom:'100%'` + `marginBottom:8`
   （不再用 `calc(100% + 8px)` 把锚点推进行内）；`panel.maxWidth` 兜窄屏；入口视觉位置不变。
   验证方式: 产物断言 `"bottom":"100%"` 与 `"alignSelf":"stretch"`；真机点输入框能进光标。
   日志断言: 无
 
-- [ ] T-09 撤销跨会话开合记忆（CR-01 / R-05）
+- [x] T-09 撤销跨会话开合记忆（CR-01 / R-05）[logic.js 删 27 行记忆三件套；grep 无残留；page-logic 回到 14 例]
   依赖: 无 | 处置: 新增（回退 T-03 的记忆部分）
   验收标准: 删 `PANEL_STATE_KEY`/`readPanelOpen`/`writePanelOpen`；`open` 回到 `useState(false)`；
   收起/展开不再写浏览器存储；`page-logic` 的 3 个记忆用例删除。
   验证方式: `node --test tests/page-logic.test.js` 贴输出（应回到 14 例）；`grep -r "panel-open" src/` 无命中。
   日志断言: 无
 
-- [ ] T-10 断言改写与真机复验（CR-01 / R-10 / S-08）
+- [x] T-10 断言改写与真机复验（CR-01 / R-10 / S-08）[断言全绿；真机「录制中可打字」由用户 2026-11-11 确认]
   依赖: T-08, T-09 | 处置: 新增（承接 T-04/T-07）
   验收标准: `page-render` 收起态用例改写成「默认收起」；新增断言「卡片展开时 panel 不进入输入行」
   （`"bottom":"100%"`）；真机：卡片展开、录制中直接点输入框能打字并发送。
@@ -135,3 +142,70 @@ T-08 ─┐
       ├→ T-10 →（真机复验 → completion）
 T-09 ─┘
 ```
+
+## CR-02 任务（2026-11-11）
+
+- [x] T-11 宿主 `recordState()` + `GET /record`（CR-02 / R-14）
+  证据: `lib/service.js` 新增 `recordState()`（含 `child.exitCode` 自愈）；`lib/routes.js` 的 `/record` 支持 GET
+
+- [x] T-12 `QuickPanel` 支持页面模式（CR-02 / R-13）
+  证据: 新增 `page` 参数；页面态 `styles.pageRoot/pagePanel`，不再有绝对定位浮层与入口按钮
+
+- [x] T-13 注册 `main` + `sidebar.panellist` + 侧栏图标（CR-02 / R-11）
+  证据: `src/client/index.jsx` 注册 `main`（key `meeting-panel`）与 `sidebar.panellist`（order 30）；
+  新增 `MeetingPanel.jsx`、`RecordIcon.jsx`、`recordState.js`
+
+- [x] T-14 删除输入框入口并重写渲染测试（CR-02 / R-12）
+  证据: `conversation.input.right` 注册已删除；`page-render` 增加注册表断言（id 与 key 一致、order 30、
+  不再有 input.right）；`page-live` 改用模块导出
+
+- [x] T-12b 页面模式初始化修复（web 版实测发现）
+  证据: 初始化 effect 改 `visible = page || open`；`useRecordState` 接入页面态，
+  另一会话开着的录音在页面里显示「停止并识别 mm:ss」
+
+- [x] T-12c 切页面后字幕框丢失（用户反馈，host + client 两处）
+  证据: 宿主 `streaming: Boolean(recording.stream)`；客户端派生 `recording/liveMeetingId/liveStreaming`
+  并在外部录音时重建 `current`；CDP 实测切回后 /live 轮询恢复、字幕框与「录制中」都在
+
+- [x] T-12d 「交给会话」拿不到当前会话 id（用户反馈）
+  证据: `currentSessionId()` 读 `dsh.sessions.current`；作用域缺失时用 `sessions.using` 借；
+  web 实操「已发送到会话 …ee3c2e27（全文，38 字）」，会话存储里出现 `agent/inbox/spliced` + `turn/start`
+
+- [x] T-12e 写锁冲突（session/writer-held）处理
+  证据: 删除 `sessions.using` 兜底路径（retain + send = 自己抢自己）；
+  识别 `writer-held` 并给出「另一个客户端占着会话」的明确提示 + 剪贴板兜底；
+  验证用 web 宿主已停
+
+- [x] T-12f 停止录制后切页面，刚录完那场消失（用户反馈）
+  证据: `lastMeeting.js` 记忆 + 挂载时 `GET /detail` 恢复确认区；
+  `tests/page-restore.test.js` 3 例 + `tests/last-meeting.test.js` 5 例；
+  现场会议 `20261112-1309-2625` 已补成产物 `meetings/20261112-1309-2625.md`
+
+- [ ] T-15 真机验证（CR-02 / S-09 / S-10）
+  验收标准: 侧栏出现第 4 行「会记」；点击进入页面；录制中切会话图标仍是绿点 + 计时；无会话也能录音
+  验证方式: 用户原话确认
+
+## 依赖图（CR-02 段）
+
+```
+T-11 ─┐
+T-12 ─┼→ T-13 → T-14 → T-15（真机）
+      ┘
+```
+
+### T-15 进展（web 版 CDP 实测，2026-11-11）
+
+已完成（脚本 `node .tmp/cdp-panel2.mjs <url>`）：
+- 侧栏入口存在且在工作区标题之上（y=200 < 254），`aria-label="会记"`
+- 点击后主区域渲染会记页面，`云端已配置: true`，`开始录音可用: true`，状态词「空闲」
+- `GET /note-taker/record` 返回 `200 {"ok":true,"running":false}`
+
+仍需真人真机确认（headless 无麦克风，录不了音）：
+- 录制中侧栏图标变绿 + 显示 mm:ss
+- 录制中切会话 / 切到空会话，入口仍在、仍能停止
+- 2026-11-11 追加实测：切走再切回会记页面，字幕区恢复（`{字幕框:true, 录制中:true, 停止按钮:true}`），
+  `/live` 轮询在切走后归零、切回后恢复
+
+
+
+
