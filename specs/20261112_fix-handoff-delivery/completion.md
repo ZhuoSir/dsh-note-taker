@@ -22,6 +22,6 @@
 
 ```
 结构检查: 41 项全部存在
-构建校验: lib/client.js 可重复构建（d872418e129a）
+构建校验: lib/client.js 可重复构建（d51c562cc76d）
 tests 375 / pass 375 / fail 0
 ```
