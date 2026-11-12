@@ -18,6 +18,7 @@ import { LIVE_POLL_MS } from './logic.js'
 import { theme } from './theme.js'
 import { useRecordState } from './recordState.js'
 import { currentSessionId } from './host.js'
+import { rememberMeeting, getRememberedMeeting, forgetMeeting } from './lastMeeting.js'
 
 const POLL_MS = 2000
 const TRANSCRIBE_TIMEOUT_MS = 15 * 60 * 1000
@@ -232,6 +233,44 @@ export function QuickPanel({ sessionId, page = false } = {}) {
         }))
   }, [externalRunning, globalRecord.meetingId, globalRecord.label, globalRecord.startedAt, globalRecord.streaming])
 
+  // 回到页面时把「刚录完的那场」捡回来（用户反馈：停止录制后切页面，回来内容没了）
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (restoredRef.current) return
+    if (!(page || open)) return
+    if (recording) return
+    const remembered = getRememberedMeeting()
+    if (!remembered) { restoredRef.current = true; return }
+    if (current?.meetingId === remembered.meetingId) { restoredRef.current = true; return }
+    restoredRef.current = true
+    let cancelled = false
+    ;(async () => {
+      const detail = await api.detail({ id: remembered.meetingId, sessionId })
+      if (cancelled) return
+      if (detail.ok === false) return
+      const meeting = detail.meeting ?? {}
+      const status = meeting.status?.transcribe
+      if (status !== 'done' || !detail.transcript) {
+        setNotice(`上一场会议 ${remembered.meetingId} 还没出转写结果，可在 设置 → 会记 查看`)
+        return
+      }
+      setCurrent({
+        meetingId: remembered.meetingId,
+        label: meeting.label ?? '',
+        startedAt: meeting.startedAt,
+        durationSec: meeting.durationSec ?? null,
+        outputPath: detail.outputPath ?? null,
+        outputMode: detail.outputMode ?? 'fallback',
+        workspaceRoot: detail.workspaceRoot ?? null,
+        streaming: false,
+      })
+      setLabelDraft(meeting.label ?? '')
+      setTranscript(detail.transcript ?? '')
+      setPhase('confirm')
+    })()
+    return () => { cancelled = true }
+  }, [page, open, recording, current?.meetingId, api, sessionId])
+
   // 字幕轮询（R-02）：只在流式录音期间开；页面隐藏时暂停，回来再继续
   useEffect(() => {
     const meetingId = liveMeetingId
@@ -309,12 +348,14 @@ export function QuickPanel({ sessionId, page = false } = {}) {
         setLabelDraft(label)
         setTranscript(detail.transcript ?? '')
         setPhase('confirm')
+        rememberMeeting(meetingId)
         refresh()
         return
       }
       if (status === 'failed') {
         setPhase('error')
         setError(detail.meeting?.errors?.transcribe ?? '识别失败')
+        rememberMeeting(meetingId)
         return
       }
     }
@@ -414,6 +455,7 @@ export function QuickPanel({ sessionId, page = false } = {}) {
 
   const reset = useCallback(() => {
     setPhase('idle'); setCurrent(null); setTranscript(''); setLabelDraft(''); setError(null); setNotice(null)
+    forgetMeeting()
     setLive(null); setLiveSilence(0)
   }, [])
 

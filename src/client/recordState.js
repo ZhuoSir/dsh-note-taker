@@ -65,6 +65,7 @@ function startPolling() {
   if (timer) return
   tick()
   timer = setInterval(tick, POLL_MS)
+  timer?.unref?.() // node 里跑测试时不挂住进程；浏览器无此方法，不影响
 }
 
 function stopPolling() {
