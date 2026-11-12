@@ -38,3 +38,5 @@ minutes/
 # 会议产物（真实会议内容，永不入库）
 meetings/
 
+# 视觉验证产物（临时图片与运行记录，不入库）
+.dsh-vision-router/
