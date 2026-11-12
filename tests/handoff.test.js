@@ -43,6 +43,7 @@ test('回落模式：给绝对路径且不写工作区根', () => {
   })
 
   assert.match(result.text, /D:\/data\/meetings\/20261110-1626-3d64\.md/)
+  assert.match(result.text, /绝对路径/, '绝对路径就该说绝对')
   assert.doesNotMatch(result.text, /工作区根/)
 })
 
@@ -58,7 +59,7 @@ test('没有产物路径时退化为内联（兼容旧行为）', () => {
 
 test('既无路径又无转写时拒绝构造', () => {
   assert.equal(buildHandoffMessage({ meetingId: 'm-1' }).ok, false)
-  assert.match(buildHandoffMessage({ meetingId: 'm-1' }).reason, /既没有产物路径/)
+  assert.match(buildHandoffMessage({ meetingId: 'm-1' }).reason, /既没有产物文件/)
 })
 
 test('缺会议 id 直接拒绝', () => {
