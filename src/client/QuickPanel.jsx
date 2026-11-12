@@ -19,6 +19,8 @@ import { theme } from './theme.js'
 import { useRecordState } from './recordState.js'
 import { currentSessionId } from './host.js'
 import { rememberMeeting, getRememberedMeeting, forgetMeeting } from './lastMeeting.js'
+import HistoryList from './HistoryList.jsx'
+import { toListRows } from './logic.js'
 
 const POLL_MS = 2000
 const TRANSCRIBE_TIMEOUT_MS = 15 * 60 * 1000
@@ -134,6 +136,14 @@ export function QuickPanel({ sessionId, page = false } = {}) {
   const [consent, setConsent] = useState(null)
   const consentResolveRef = useRef(null)
 
+  // 历史纪要区（CR-03）：从设置页搬来，状态留在页面里，切走重进重新拉
+  const [historyId, setHistoryId] = useState(null)
+  const [historyTitle, setHistoryTitle] = useState('')
+  const [historyText, setHistoryText] = useState('')
+  const [historyAll, setHistoryAll] = useState(false)
+  const [historyListLimit, setHistoryListLimit] = useState(20)
+  const [historyError, setHistoryError] = useState(null)
+
   const askConsent = useCallback((text) => new Promise((resolve) => {
     consentResolveRef.current = resolve
     setConsent({ text })
@@ -150,9 +160,25 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     confirmCloud: (text) => askConsent(text),
   }), [askConsent])
   const caps = useMemo(() => capabilitiesFrom(health), [health])
+  const historyRows = useMemo(() => toListRows(rows, { limit: 50 }), [rows])
+
+  /** 展开/收起某场会议：有纪要显示纪要，没有则显示转写 */
+  const openHistory = useCallback(async (id) => {
+    if (historyId === id) { setHistoryId(null); setHistoryText(''); setError(null); return }
+    setHistoryError(null)
+    const result = await api.detail({ id })
+    if (result.ok === false) { setHistoryError(errorText(result.code, result.detail)); return }
+    const minutes = (result.minutes ?? '').trim()
+    const transcript = (result.transcript ?? '').trim()
+    setHistoryId(id)
+    setHistoryTitle(result.meeting?.label || result.meeting?.startedAt || id)
+    setHistoryText(minutes !== '' ? minutes : transcript)
+    setHistoryAll(false)
+    if (minutes === '' && transcript === '') setHistoryError('这场会议没有纪要，也没有转写正文')
+  }, [api, historyId])
 
   const refresh = useCallback(async () => {
-    const [listResult, healthResult] = await Promise.all([api.list({ limit: 3 }), api.health()])
+    const [listResult, healthResult] = await Promise.all([api.list({ limit: page ? 50 : 3 }), api.health()])
     if (listResult.ok === false) {
       // 刷新失败是「后台拉列表」的问题，不能显示成「识别失败」误导用户
       setRefreshError(`刷新失败：${errorText(listResult.code, listResult.detail)}`)
@@ -599,7 +625,24 @@ export function QuickPanel({ sessionId, page = false } = {}) {
           )
         : null,
 
-      createElement('div', { style: styles.muted }, '全部会议在 设置 → 会记'),
+      // 历史纪要（CR-03）：从设置页搬来，所有会议都列，没出纪要的也能找到
+      page
+        ? createElement(HistoryList, {
+            rows: historyRows,
+            openedId: historyId,
+            openedTitle: historyTitle,
+            openedText: historyText,
+            showAll: historyAll,
+            limit: historyListLimit,
+            error: historyError,
+            onOpen: openHistory,
+            onShowAll: (what) => {
+              if (what === 'more') setHistoryListLimit((n) => n + 20)
+              else setHistoryAll(true)
+            },
+          })
+        : null,
+
       createElement('div', { style: { ...styles.muted, fontSize: 10 } }, hostStatusText()),
     ) : null,
   )

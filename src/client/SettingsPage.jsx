@@ -1,5 +1,8 @@
 /**
- * 设置区「会记」页：配置 + 历史纪要（R-01~R-04）。
+ * 设置区「会记」页：**只放配置**（R-01~R-04）。
+ *
+ * CR-03：历史纪要已搬到侧栏「会记」页面——用户找上一场时人就在那儿，
+ * 不该先跳设置再翻标签。这里只保留与识别引擎相关的配置。
  *
  * 纪律：
  * - 配置读写走 ./api.js，不直接 fetch
@@ -11,7 +14,7 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
 
 import { createApi } from './api.js'
-import { errorText, formatDateTime, formatDuration, paginateTranscript, toListRows } from './logic.js'
+import { errorText, formatDateTime, formatDuration } from './logic.js'
 import { theme } from './theme.js'
 
 const MODELS = ['tiny', 'base', 'small', 'medium']
@@ -57,7 +60,6 @@ function Field({ label, hint, error, children }) {
 
 export function SettingsPage() {
   const api = useMemo(() => createApi({}), [])
-  const [tab, setTab] = useState('config')
   const [form, setForm] = useState(null)
   const [sources, setSources] = useState({})
   const [fieldErrors, setFieldErrors] = useState({})
@@ -65,10 +67,6 @@ export function SettingsPage() {
   const [notice, setNotice] = useState(null)
   const [saving, setSaving] = useState(false)
 
-  const [meetings, setMeetings] = useState([])
-  const [openedId, setOpenedId] = useState(null)
-  const [minutesText, setMinutesText] = useState(null)
-  const [showAll, setShowAll] = useState(false)
 
   const loadConfig = useCallback(async () => {
     const result = await api.getConfig()
@@ -78,13 +76,8 @@ export function SettingsPage() {
     setError(null)
   }, [api])
 
-  const loadMinutes = useCallback(async () => {
-    const result = await api.list({ limit: 50 })
-    if (result.ok === false) { setError(errorText(result.code, result.detail)); return }
-    setMeetings(result.meetings ?? [])
-  }, [api])
 
-  useEffect(() => { loadConfig(); loadMinutes() }, [loadConfig, loadMinutes])
+  useEffect(() => { loadConfig() }, [loadConfig])
 
   const update = useCallback((section, key, value) => {
     setForm((prev) => ({ ...prev, [section]: { ...(prev?.[section] ?? {}), [key]: value } }))
@@ -145,19 +138,7 @@ export function SettingsPage() {
     }
   }, [api, form, loadConfig])
 
-  const openMinutes = useCallback(async (id) => {
-    if (openedId === id) { setOpenedId(null); setMinutesText(null); return }
-    const result = await api.detail({ id })
-    if (result.ok === false) { setError(errorText(result.code, result.detail)); return }
-    setOpenedId(id)
-    setMinutesText(result.minutes ?? '')
-    setShowAll(false)
-  }, [api, openedId])
 
-  const minutesRows = useMemo(
-    () => toListRows(meetings, { limit: 50 }).filter((row) => row.hasMinutes || row.minutes.status === 'done'),
-    [meetings],
-  )
 
   if (!form) {
     return createElement('div', { style: styles.wrap },
@@ -167,18 +148,13 @@ export function SettingsPage() {
   return createElement('div', { style: styles.wrap },
     createElement('div', { style: styles.bar },
       createElement('strong', { style: { fontSize: 15 } }, '会记'),
-      createElement('span', { style: styles.muted }, '配置与历史纪要；录音与生成纪要在会话输入框旁的「会记」里'),
-    ),
-
-    createElement('div', { style: styles.tabs, role: 'tablist' },
-      createElement('button', { type: 'button', role: 'tab', 'aria-selected': tab === 'config', style: styles.tab(tab === 'config'), onClick: () => setTab('config') }, '配置'),
-      createElement('button', { type: 'button', role: 'tab', 'aria-selected': tab === 'minutes', style: styles.tab(tab === 'minutes'), onClick: () => setTab('minutes') }, `历史纪要（${minutesRows.length}）`),
+      createElement('span', { style: styles.muted }, '只放配置；录音、历史纪要与生成纪要在侧栏「会记」页面里'),
     ),
 
     error ? createElement('div', { style: styles.error }, error) : null,
     notice ? createElement('div', { style: styles.ok }, notice) : null,
 
-    tab === 'config' ? createElement('div', { style: styles.card },
+    createElement('div', { style: styles.card },
       createElement('div', { style: { fontSize: 13, fontWeight: 600 } }, '语音识别'),
       createElement('div', { style: styles.row },
         createElement(Field, { label: '默认引擎' },
@@ -279,49 +255,8 @@ export function SettingsPage() {
         }, saving ? '保存中…' : '保存配置'),
         createElement('span', { style: styles.muted }, `生效来源：引擎 ${sources.engine ?? '—'}／Key ${sources.apiKey ?? '—'}`),
       ),
-    ) : null,
+    ),
 
-    tab === 'minutes' ? createElement('div', { style: styles.card },
-      createElement('div', { style: { fontSize: 13, fontWeight: 600 } }, `历史纪要（${minutesRows.length}）`),
-      minutesRows.length === 0
-        ? createElement('div', { style: styles.muted }, '还没有纪要。录音并在会话里生成后，这里会出现。')
-        : createElement('table', { style: styles.table },
-            createElement('thead', null, createElement('tr', null,
-              createElement('th', { style: styles.th }, '时间'),
-              createElement('th', { style: styles.th }, '标签'),
-              createElement('th', { style: styles.th }, '时长'),
-              createElement('th', { style: styles.th }, '引擎'),
-              createElement('th', { style: styles.th }, '段数'),
-            )),
-            createElement('tbody', null, minutesRows.map((row) => createElement('tr', {
-              key: row.id,
-              onClick: () => openMinutes(row.id),
-              style: { cursor: 'pointer', background: row.id === openedId ? theme.accentBg : 'transparent' },
-            },
-              createElement('td', { style: styles.td }, row.startedText),
-              createElement('td', { style: styles.td }, row.label),
-              createElement('td', { style: styles.td }, row.durationText),
-              createElement('td', { style: styles.td }, row.engineText),
-              createElement('td', { style: styles.td }, row.segments ?? '—'),
-            ))),
-          ),
-    ) : null,
-
-    tab === 'minutes' && openedId ? createElement('div', { style: styles.card },
-      createElement('div', { style: styles.bar },
-        createElement('strong', null, '纪要正文'),
-        createElement('button', { type: 'button', style: styles.btn, onClick: () => openMinutes(openedId) }, '收起'),
-      ),
-      minutesText
-        ? createElement('div', null,
-            createElement('pre', { style: styles.pre }, paginateTranscript(minutesText, { showAll }).lines.join('\n')),
-            paginateTranscript(minutesText, { showAll }).truncated
-              ? createElement('button', { type: 'button', style: styles.btn, onClick: () => setShowAll(true) },
-                  `展开剩余 ${paginateTranscript(minutesText, { showAll }).remaining} 行`)
-              : null,
-          )
-        : createElement('div', { style: styles.muted }, '这场会议还没有纪要文件'),
-    ) : null,
   )
 }
 

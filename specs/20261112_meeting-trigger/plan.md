@@ -1,6 +1,7 @@
 # 技术方案：meeting-trigger
 
-> 版本: v0.3.0 | 状态: 已确认 | 更新: 2026-11-11 | 确认人: 陈卓 | 确认日期: 2026-11-11
+> 版本: v0.4.0 | 状态: 待重确认 | 更新: 2026-11-12 | 确认人: — | 确认日期: —
+> 变更: CR-03（页面内历史纪要区块，设置页只留配置）
 > 变更: CR-02（入口搬到侧栏 + 全局页面 + 全局录音状态）
 > 变更: CR-01（卡片定位与开合记忆，见 `changes/CR-01_panel-blocks-input.md`）
 > 需求: `requirements.md` v0.1.0（已确认，陈卓 2026-11-12）
@@ -233,3 +234,21 @@ ctx.slots.inject('sidebar.panellist', () => ctx.slots.register(
 | T-13 | 注册 `main` + `sidebar.panellist` + 侧栏图标（CR-02） | 已完成 |
 | T-14 | 删除输入框入口并重写渲染测试（CR-02） | 已完成 |
 | T-15 | 真机验证侧栏入口与跨会话停录（CR-02） | 待用户 |
+
+## §2.3e 页面内历史纪要（CR-03）
+
+```
+会记页面（main slot, key=meeting-panel）
+├─ 录音控制 / 实时字幕 / 当前会议 / 转写确认      ← 已有
+└─ HistoryList（新）                              ← 从设置页搬来
+     rows = toListRows(list, { limit: 50 })       纯前端派生，不新增接口
+     点行 → GET /detail → 有纪要显示纪要，否则转写
+```
+
+要点：
+
+1. `HistoryList.jsx` 是纯展示组件（无 hook，方便单测）：行数据、正文、展开态全由 `QuickPanel` 传；
+2. 列表**不用 `hasMinutes` 过滤**——没出纪要的会议也要在列表里，用徽标区分状态；
+3. 状态徽标优先级：已生成纪要 → 识别失败 → 录音中断 → 识别中（蓝）→ 仅转写 → 仅录音；
+4. 设置页 `tab === 'minutes'` 的表格与正文卡片、以及 `meetings/openedId/minutesText/showAll` 四个 state 全部删除；
+5. 长列表每 20 条递增（`historyListLimit`），长正文沿用 `paginateTranscript`（每 100 行）。

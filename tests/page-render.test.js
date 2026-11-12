@@ -102,8 +102,9 @@ const RAW_MEETING = {
   errors: {},
 }
 
-// SettingsPage 的 useState 顺序：
-// 0=form 1=sources 2=fieldErrors 3=error 4=notice 5=saving 6=meetings 7=openedId 8=minutesText 9=showAll
+// SettingsPage 的 useState 顺序（CR-03 后只剩配置相关）：
+// 0=form 1=sources 2=fieldErrors 3=error 4=notice 5=saving
+// 历史纪要已搬到会记页面，本页不再有 meetings/openedId/minutesText/showAll
 
 function renderText(Page, react) {
   react.reset() // 每次渲染前重置 hook 序号，否则第二次调用拿不到注入的初值
@@ -118,7 +119,7 @@ test('配置未加载时显示占位，不崩', () => {
 })
 
 test('配置加载后渲染表单：引擎单选、模型下拉、Key 掩码都在', () => {
-  const react = makeReact({ 1: CONFIG })
+  const react = makeReact({ 0: CONFIG })
   const Page = loadComponent('settings.section', react)
   react.reset()
 
@@ -130,32 +131,22 @@ test('配置加载后渲染表单：引擎单选、模型下拉、Key 掩码都�
   assert.match(flat, /保存配置/)
 })
 
-test('有历史纪要时列表渲染，原始对象不崩（派生视图回归）', () => {
-  const react = makeReact({ 0: 'minutes', 1: CONFIG, 7: [RAW_MEETING] })
-  const Page = loadComponent('settings.section', react)
-  react.reset()
-
-  assert.doesNotThrow(() => Page())
-  const flat = renderText(Page, react)
-  assert.match(flat, /历史纪要（1）/)
-  assert.match(flat, /云端 E2E/)
-})
-
-test('没有纪要的会议不出现在列表里', () => {
-  const pending = { ...RAW_MEETING, status: { ...RAW_MEETING.status, minutes: 'pending' } }
-  const react = makeReact({ 0: 'minutes', 1: CONFIG, 7: [pending] })
+test('设置页只留配置：不再出现历史纪要标签与表格', () => {
+  const react = makeReact({ 0: CONFIG })
   const Page = loadComponent('settings.section', react)
   react.reset()
 
   const flat = renderText(Page, react)
-  assert.match(flat, /历史纪要（0）/)
-  assert.match(flat, /还没有纪要/)
+  assert.doesNotMatch(flat, /历史纪要（\d+）/, 'CR-03：历史纪要标签已搬到会记页面')
+  assert.doesNotMatch(flat, /role":"tab"/, '只剩配置，不需要标签栏')
+  assert.match(flat, /只放配置；录音、历史纪要与生成纪要在侧栏「会记」页面里/, '文案要指路')
+  assert.match(flat, /保存配置/, '配置功能照常')
 })
 
 test('字段错误按位置渲染，不抛异常', () => {
   const react = makeReact({
-    1: CONFIG,
-    3: { 'asr.chunkSeconds': '分片秒数必须是 10–3600 的整数' },
+    0: CONFIG,
+    2: { 'asr.chunkSeconds': '分片秒数必须是 10–3600 的整数' },
   })
   const Page = loadComponent('settings.section', react)
   react.reset()
