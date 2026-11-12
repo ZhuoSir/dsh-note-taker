@@ -143,6 +143,7 @@ export function QuickPanel({ sessionId, page = false } = {}) {
   const [historyAll, setHistoryAll] = useState(false)
   const [historyListLimit, setHistoryListLimit] = useState(20)
   const [historyError, setHistoryError] = useState(null)
+  const [generatingId, setGeneratingId] = useState(null)
 
   const askConsent = useCallback((text) => new Promise((resolve) => {
     consentResolveRef.current = resolve
@@ -434,6 +435,36 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     await runTranscribe(result.meetingId, result.durationSec)
   }, [api, sessionId, awaitTranscript, runTranscribe])
 
+  /**
+   * 把文本交给当前会话。
+   *
+   * 交接（确认区）和历史纪要用同一条路：都发到「当前打开的会话」，
+   * 由会话里的 agent 生成纪要并写回产物。失败时复述真实原因并兜底复制，
+   * 不把「写锁被占」说成「不支持」。
+   */
+  const deliver = useCallback(async (text, built) => {
+    // 页面态拿不到会话注入 → 用宿主记录的「当前打开的会话」
+    const target = sessionId ?? currentSessionId()
+    const sent = await sendToSession({ sessionId: target ?? undefined, text })
+    if (sent.ok) {
+      return {
+        ok: true,
+        notice: `已发送到会话 ${shortId(sent.sessionId)}（${built?.mode === 'summary' ? '摘要模式' : '全文'}，${built?.chars ?? text.length} 字）· 点左侧该会话查看`,
+      }
+    }
+    const copied = await copyText(text)
+    const blocked = /写锁|writer-held|正开着这个会话/.test(String(sent.reason))
+    return {
+      ok: false,
+      reason: sent.reason,
+      notice: copied.ok
+        ? (blocked
+          ? '该会话正被另一个客户端占着，文本已复制到剪贴板——打开这个会话粘贴发送即可'
+          : '宿主不支持自动发送，文本已复制到剪贴板，请粘贴到输入框发送')
+        : `无法发送也无法复制（${copied.reason}），请手动重试`,
+    }
+  }, [sessionId])
+
   const handoff = useCallback(async () => {
     if (!current?.meetingId) return
     const built = buildHandoffMessage({
@@ -448,26 +479,41 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     if (built.ok === false) { setPhase('error'); setError(built.reason); return }
 
     setPhase('sending')
-    // 页面态拿不到会话注入 → 用宿主记录的「当前打开的会话」
-    const target = sessionId ?? currentSessionId()
-    const sent = await sendToSession({ sessionId: target ?? undefined, text: built.text })
-    if (sent.ok) {
-      setPhase('sent')
-      setNotice(`已发送到会话 ${shortId(sent.sessionId)}（${built.mode === 'summary' ? '摘要模式' : '全文'}，${built.chars} 字）· 点左侧该会话查看`)
-      return
-    }
-    setError(`无法自动发送：${sent.reason}`)
-
-    // 兜底：复制到剪贴板，并说明真实情况
-    const copied = await copyText(built.text)
-    const blocked = /写锁|writer-held|正开着这个会话/.test(String(sent.reason))
+    const result = await deliver(built.text, built)
+    if (result.ok) { setPhase('sent'); setNotice(result.notice); return }
+    setError(`无法自动发送：${result.reason}`)
     setPhase('sent')
-    setNotice(copied.ok
-      ? (blocked
-        ? '该会话正被另一个客户端占着，文本已复制到剪贴板——打开这个会话粘贴发送即可'
-        : '宿主不支持自动发送，文本已复制到剪贴板，请粘贴到输入框发送')
-      : `无法发送也无法复制（${copied.reason}），请手动重试`)
-  }, [current, transcript, sessionId])
+    setNotice(result.notice)
+  }, [current, transcript, deliver])
+
+  /** 历史行「生成纪要」：和正常流程一样，把这场的转写发给当前会话 */
+  const generateMinutes = useCallback(async (row) => {
+    if (!row?.id || generatingId) return
+    setHistoryError(null)
+    setGeneratingId(row.id)
+    try {
+      const detail = await api.detail({ id: row.id })
+      if (detail.ok === false) { setHistoryError(errorText(detail.code, detail.detail)); return }
+      const text = String(detail.transcript ?? '').trim()
+      if (text === '') { setHistoryError('这场会议还没有转写，先识别再生成纪要'); return }
+      const built = buildHandoffMessage({
+        meetingId: row.id,
+        label: detail.meeting?.label ?? row.rawLabel ?? '',
+        durationSec: detail.meeting?.durationSec ?? null,
+        outputPath: detail.outputPath,
+        outputMode: detail.outputMode,
+        workspaceRoot: detail.workspaceRoot,
+        transcript: text,
+      })
+      if (built.ok === false) { setHistoryError(built.reason); return }
+      const result = await deliver(built.text, built)
+      if (result.ok) { setNotice(result.notice); return }
+      setHistoryError(`无法自动发送：${result.reason}`)
+      setNotice(result.notice)
+    } finally {
+      setGeneratingId(null)
+    }
+  }, [api, deliver, generatingId])
 
   const saveLabel = useCallback(async () => {
     if (!current?.meetingId) return
@@ -635,7 +681,9 @@ export function QuickPanel({ sessionId, page = false } = {}) {
             showAll: historyAll,
             limit: historyListLimit,
             error: historyError,
+            generatingId,
             onOpen: openHistory,
+            onGenerate: generateMinutes,
             onShowAll: (what) => {
               if (what === 'more') setHistoryListLimit((n) => n + 20)
               else setHistoryAll(true)

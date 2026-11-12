@@ -157,3 +157,64 @@ test('设置页不再有历史纪要（搬到页面后不留两处）', () => {
   assert.doesNotMatch(flat, /role":"tab"/, '设置页不再需要标签栏')
   assert.match(flat, /只放配置；录音、历史纪要与生成纪要在侧栏「会记」页面里/)
 })
+
+// ── CR-04：待生成的会议要有「生成纪要」按钮（和正常流程一样，发给会话生成）──
+
+/** 把展平后的树里所有按钮摘出来 */
+function buttons(tree) {
+  const out = []
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return
+    if (Array.isArray(node)) { node.forEach(walk); return }
+    if (node.type === 'button') out.push({ text: (node.children ?? []).join(''), disabled: node.props?.disabled === true, title: node.props?.title })
+    ;(node.children ?? []).forEach(walk)
+  }
+  walk(tree)
+  return out
+}
+
+function pageTree(overrides) {
+  globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} }
+  const react = makeReact(overrides)
+  const QuickPanel = loadQuickPanel(react)
+  react.reset()
+  return flatten(QuickPanel({ page: true }))
+}
+
+test('仅转写的会议有可点的「生成纪要」', () => {
+  const list = buttons(pageTree({ 1: [TRANSCRIPT_ONLY] }))
+  const target = list.find((b) => b.text === '生成纪要')
+  assert.ok(target, '必须出现「生成纪要」按钮')
+  assert.equal(target.disabled, false, '有转写就该能点')
+  assert.match(target.title ?? '', /当前会话/, '标题要说清楚是发给会话生成')
+})
+
+test('已生成纪要的会议不再显示生成按钮', () => {
+  const list = buttons(pageTree({ 1: [WITH_MINUTES] }))
+  assert.ok(!list.some((b) => b.text === '生成纪要'), '已有纪要不该再给生成按钮')
+})
+
+test('没有转写时按钮置灰并说明原因', () => {
+  const pending = { ...TRANSCRIPT_ONLY, id: '20261112-1500-aaaa', status: { record: 'done', transcribe: 'pending', minutes: 'pending' } }
+  const list = buttons(pageTree({ 1: [pending] }))
+  const target = list.find((b) => b.text === '生成纪要')
+  assert.ok(target, '按钮要在，只是不可点')
+  assert.equal(target.disabled, true)
+  assert.match(target.title ?? '', /识别/, '要说明先等识别')
+})
+
+test('识别失败的会议按钮置灰且提示先重试识别', () => {
+  const failed = { ...TRANSCRIPT_ONLY, id: '20261112-1501-bbbb', status: { record: 'done', transcribe: 'failed', minutes: 'pending' } }
+  const list = buttons(pageTree({ 1: [failed] }))
+  const target = list.find((b) => b.text === '生成纪要')
+  assert.equal(target.disabled, true)
+  assert.match(target.title ?? '', /识别失败/)
+})
+
+test('生成中：当前行变「发送中…」，其他行也不让点', () => {
+  const list = buttons(pageTree({ 1: [TRANSCRIPT_ONLY, WITH_MINUTES], 21: TRANSCRIPT_ONLY.id }))
+  const busy = list.find((b) => b.text === '发送中…')
+  assert.ok(busy, '当前行显示「发送中…」')
+  assert.equal(busy.disabled, true)
+  assert.ok(list.filter((b) => b.text === '生成纪要').every((b) => b.disabled === true), '生成期间其他行也不能点')
+})

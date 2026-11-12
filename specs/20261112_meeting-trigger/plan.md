@@ -1,6 +1,7 @@
 # 技术方案：meeting-trigger
 
-> 版本: v0.4.0 | 状态: 待重确认 | 更新: 2026-11-12 | 确认人: — | 确认日期: —
+> 版本: v0.5.0 | 状态: 待重确认 | 更新: 2026-11-12 | 确认人: — | 确认日期: —
+> 变更: CR-04（历史行「生成纪要」= 发到当前会话，复用交接链路）
 > 变更: CR-03（页面内历史纪要区块，设置页只留配置）
 > 变更: CR-02（入口搬到侧栏 + 全局页面 + 全局录音状态）
 > 变更: CR-01（卡片定位与开合记忆，见 `changes/CR-01_panel-blocks-input.md`）
@@ -252,3 +253,20 @@ ctx.slots.inject('sidebar.panellist', () => ctx.slots.register(
 3. 状态徽标优先级：已生成纪要 → 识别失败 → 录音中断 → 识别中（蓝）→ 仅转写 → 仅录音；
 4. 设置页 `tab === 'minutes'` 的表格与正文卡片、以及 `meetings/openedId/minutesText/showAll` 四个 state 全部删除；
 5. 长列表每 20 条递增（`historyListLimit`），长正文沿用 `paginateTranscript`（每 100 行）。
+
+## §2.3f 历史行生成纪要（CR-04）
+
+复用确认区那条交接链路，不新增接口：
+
+```
+点「生成纪要」
+  → GET /detail?id=<id>                     取该场转写
+  → buildHandoffMessage({...})              组成【会记】消息（与确认区同一函数）
+  → deliver(text)                           抽出来的公共发送：sendToSession(sessionId ?? currentSessionId())
+  → 成功：notice「已发送到会话 …xxxxxxxx（全文，N 字）」
+  → 失败：行内 errorText + 剪贴板兜底（写锁被占如实说明）
+```
+
+三态判定集中在 `HistoryList.minutesAction(row)`：可点 / 置灰（带原因）/ 不渲染（已有纪要）。
+`deliver()` 由确认区 `handoff()` 与历史行 `generateMinutes()` 共用，
+避免两处各写一遍发送与兜底逻辑。

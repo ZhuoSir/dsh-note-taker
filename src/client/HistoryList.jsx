@@ -71,6 +71,26 @@ const styles = {
     padding: 8,
     borderRadius: 6,
   },
+  mini: {
+    fontSize: 10,
+    padding: '2px 8px',
+    borderRadius: 999,
+    border: `1px solid ${theme.accentBorder ?? theme.accent}`,
+    background: 'transparent',
+    color: theme.accent,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  miniOff: {
+    fontSize: 10,
+    padding: '2px 8px',
+    borderRadius: 999,
+    border: `1px solid ${theme.border}`,
+    background: 'transparent',
+    color: theme.textMuted,
+    cursor: 'not-allowed',
+    whiteSpace: 'nowrap',
+  },
   error: { fontSize: 11, color: theme.danger },
 }
 
@@ -85,9 +105,22 @@ export function historyBadge(row) {
   return { text: '仅录音', tone: 'muted' }
 }
 
+/**
+ * 这行能不能「生成纪要」：得有转写；已经有纪要就不用再生成。
+ * 生成方式与正常流程一致 —— 把转写发给当前会话，让会话里的 agent 生成并写回。
+ */
+export function minutesAction(row) {
+  if (row?.minutes?.status === 'done' || row?.hasMinutes === true) return { enabled: false, reason: '已有纪要' }
+  if (row?.transcribe?.status === 'done') return { enabled: true, reason: '' }
+  if (row?.record?.status === 'interrupted') return { enabled: false, reason: '录音中断，没有转写' }
+  if (row?.transcribe?.status === 'failed') return { enabled: false, reason: '识别失败，先重试识别' }
+  return { enabled: false, reason: '等识别完成后才能生成' }
+}
+
 export default function HistoryList({
   rows = [], openedId = null, openedTitle = '', openedText = '', showAll = false,
-  truncated = false, remaining = 0, error = null, limit = 20, onOpen, onShowAll,
+  truncated = false, remaining = 0, error = null, limit = 20,
+  generatingId = null, onOpen, onShowAll, onGenerate,
 }) {
   const shown = rows.slice(0, limit)
   const hidden = rows.length - shown.length
@@ -120,6 +153,20 @@ export default function HistoryList({
               createElement('span', { style: styles.duration }, row.durationText),
               createElement('span', { style: styles.badge(badge.tone) }, badge.text),
               createElement('span', { style: { ...styles.muted, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.rawLabel || ''),
+              (() => {
+                const action = minutesAction(row)
+                // 已经有纪要的行不必再给按钮，避免「点了会不会覆盖」的顾虑
+                if (action.reason === '已有纪要') return null
+                const busy = generatingId === row.id
+                const off = !action.enabled || busy || generatingId !== null
+                return createElement('button', {
+                  type: 'button',
+                  style: off ? styles.miniOff : styles.mini,
+                  disabled: off,
+                  title: action.enabled ? '把这场转写发到当前会话，由会话生成纪要' : action.reason,
+                  onClick: (event) => { event.stopPropagation(); if (!off) onGenerate?.(row) },
+                }, busy ? '发送中…' : '生成纪要')
+              })(),
             )
           }),
         ),
