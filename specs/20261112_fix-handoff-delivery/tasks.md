@@ -6,7 +6,7 @@
 
 ## 1. 服务端：把路径事实交出去
 
-- [ ] T-01 `GET /detail` 增 `outputAbs` / `outputRelative` / `outputBytes` / `transcriptAbs` / `transcriptChars`
+- [x] T-01 `GET /detail` 增 `outputAbs` / `outputRelative` / `outputBytes` / `transcriptAbs` / `transcriptChars`
   关联: R-01, R-03
   依赖: —
   验证方式: `node --test tests/detail-facts.test.js`——造一个有产物的会议，断言 `outputAbs` 绝对且
@@ -15,21 +15,21 @@
 
 ## 2. 消息组装：绝对路径优先，不截断
 
-- [ ] T-02 重写 `buildHandoffMessage` 的 file 模式：绝对路径 + 相对路径 + 字节数 + 转写字数
+- [x] T-02 重写 `buildHandoffMessage` 的 file 模式：绝对路径 + 相对路径 + 字节数 + 转写字数
   关联: R-01, S-01, S-02
   依赖: T-01
   验证方式: `node --test tests/handoff-message.test.js`——断言消息含 `outputAbs` 原样字符串、
   含「字节」「转写」字样、长度 < 400；对 24912 字转写的输入，断言消息里**不含**「只放开头摘要」
   验收标准: 绝对路径出现在消息首屏；长转写不再截断
 
-- [ ] T-03 新增 legacy 模式：无产物但旧转写文件存在时，交付该文件绝对路径
+- [x] T-03 新增 legacy 模式：无产物但旧转写文件存在时，交付该文件绝对路径
   关联: R-03, S-03
   依赖: T-02
   验证方式: 同上测试文件——构造 `outputAbs=null && transcriptAbs!==null`，断言 mode='legacy'
   且消息含 transcriptAbs、含「只有转写」提示
   验收标准: 旧会议不再落到「内联 + 截断」
 
-- [ ] T-04 两者皆无时不发送空消息；超长转写禁止内联截断
+- [x] T-04 两者皆无时不发送空消息；超长转写禁止内联截断
   关联: R-02, R-03, S-04
   依赖: T-03
   验证方式: 构造 `outputAbs=null && transcriptAbs=null && transcript` 分别为空/超 8000 字，
@@ -38,14 +38,14 @@
 
 ## 3. 接入与口径
 
-- [ ] T-05 `QuickPanel.generateMinutes` 与确认区 `handoff` 同时传入新字段
+- [x] T-05 `QuickPanel.generateMinutes` 与确认区 `handoff` 同时传入新字段
   关联: R-04, S-05
   依赖: T-01
   验证方式: `node --test tests/page-history.test.js`——断言两处调用的入参都含 `outputAbs`；
   发送成功提示按 mode 显示「文件路径」或「全文」
   验收标准: 两处口径一致；提示不把路径说成全文
 
-- [ ] T-06 测试与真机验证
+- [x] T-06 测试与真机验证
   关联: 全部
   依赖: T-02, T-03, T-04, T-05
   验证方式: `npm run verify` 全绿；真机（web `--profile web` + CDP）对 1:04:34 那场点生成纪要，
@@ -54,7 +54,7 @@
 
 ## 4. 收尾
 
-- [ ] T-07 BUG-05 状态翻「已修复(v1.1.0)」、changelog 记到编号级、completion.md 生成
+- [x] T-07 BUG-05 状态翻「已修复(v1.1.0)」、changelog 记到编号级、completion.md 生成
   关联: —
   依赖: T-06
   验证方式: `mdtable_check.py` 三文件全绿；`git log` 有对应 commit footer `Bug: BUG-05`

@@ -11,7 +11,7 @@
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { createApi } from './api.js'
-import { buildHandoffMessage } from './handoff.js'
+import { buildHandoffMessage, modeLabel } from './handoff.js'
 import { copyText, hostStatusText, sendToSession } from './host.js'
 import { STREAM_CONSENT_TEXT, capabilitiesFrom, errorText, formatDateTime, formatDuration, liveView, needsStreamConsent, shouldPollLive, triggerView } from './logic.js'
 import { LIVE_POLL_MS } from './logic.js'
@@ -436,6 +436,39 @@ export function QuickPanel({ sessionId, page = false } = {}) {
   }, [api, sessionId, awaitTranscript, runTranscribe])
 
   /**
+   * 组装交接消息：优先用 /detail 返回的绝对路径等事实，detail 失败才退回界面已有信息。
+   * BUG-05：以前直接用界面状态里的相对路径，会话换工作区就读不到文件。
+   */
+  const buildFor = useCallback(async (meetingId, fallback = {}) => {
+    const detail = await api.detail({ id: meetingId })
+    if (detail.ok === false) {
+      return buildHandoffMessage({
+        meetingId,
+        label: fallback.label,
+        durationSec: fallback.durationSec,
+        outputPath: fallback.outputPath,
+        outputMode: fallback.outputMode,
+        workspaceRoot: fallback.workspaceRoot,
+        transcript: fallback.transcript,
+      })
+    }
+    return buildHandoffMessage({
+      meetingId,
+      label: detail.meeting?.label ?? fallback.label,
+      durationSec: detail.meeting?.durationSec ?? fallback.durationSec,
+      outputAbs: detail.outputAbs ?? null,
+      outputRelative: detail.outputRelative ?? null,
+      outputBytes: detail.outputBytes ?? 0,
+      outputPath: detail.outputPath ?? null,
+      outputMode: detail.outputMode ?? 'workspace',
+      workspaceRoot: detail.workspaceRoot ?? null,
+      transcriptAbs: detail.transcriptAbs ?? null,
+      transcriptChars: detail.transcriptChars ?? 0,
+      transcript: detail.transcript ?? fallback.transcript ?? '',
+    })
+  }, [api])
+
+  /**
    * 把文本交给当前会话。
    *
    * 交接（确认区）和历史纪要用同一条路：都发到「当前打开的会话」，
@@ -447,9 +480,11 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     const target = sessionId ?? currentSessionId()
     const sent = await sendToSession({ sessionId: target ?? undefined, text })
     if (sent.ok) {
+      const label = modeLabel(built?.mode)
+      const size = built?.mode === 'inline' ? `，${built?.chars ?? text.length} 字` : ''
       return {
         ok: true,
-        notice: `已发送到会话 ${shortId(sent.sessionId)}（${built?.mode === 'summary' ? '摘要模式' : '全文'}，${built?.chars ?? text.length} 字）· 点左侧该会话查看`,
+        notice: `已发送到会话 ${shortId(sent.sessionId)}（${label}${size}）· 点左侧该会话查看`,
       }
     }
     const copied = await copyText(text)
@@ -467,8 +502,7 @@ export function QuickPanel({ sessionId, page = false } = {}) {
 
   const handoff = useCallback(async () => {
     if (!current?.meetingId) return
-    const built = buildHandoffMessage({
-      meetingId: current.meetingId,
+    const built = await buildFor(current.meetingId, {
       label: current.label,
       durationSec: current.durationSec,
       outputPath: current.outputPath,
@@ -484,7 +518,7 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     setError(`无法自动发送：${result.reason}`)
     setPhase('sent')
     setNotice(result.notice)
-  }, [current, transcript, deliver])
+  }, [current, transcript, deliver, buildFor])
 
   /** 历史行「生成纪要」：和正常流程一样，把这场的转写发给当前会话 */
   const generateMinutes = useCallback(async (row) => {
@@ -492,19 +526,7 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     setHistoryError(null)
     setGeneratingId(row.id)
     try {
-      const detail = await api.detail({ id: row.id })
-      if (detail.ok === false) { setHistoryError(errorText(detail.code, detail.detail)); return }
-      const text = String(detail.transcript ?? '').trim()
-      if (text === '') { setHistoryError('这场会议还没有转写，先识别再生成纪要'); return }
-      const built = buildHandoffMessage({
-        meetingId: row.id,
-        label: detail.meeting?.label ?? row.rawLabel ?? '',
-        durationSec: detail.meeting?.durationSec ?? null,
-        outputPath: detail.outputPath,
-        outputMode: detail.outputMode,
-        workspaceRoot: detail.workspaceRoot,
-        transcript: text,
-      })
+      const built = await buildFor(row.id, { label: row.rawLabel ?? '' })
       if (built.ok === false) { setHistoryError(built.reason); return }
       const result = await deliver(built.text, built)
       if (result.ok) { setNotice(result.notice); return }
@@ -513,7 +535,7 @@ export function QuickPanel({ sessionId, page = false } = {}) {
     } finally {
       setGeneratingId(null)
     }
-  }, [api, deliver, generatingId])
+  }, [buildFor, deliver, generatingId])
 
   const saveLabel = useCallback(async () => {
     if (!current?.meetingId) return
